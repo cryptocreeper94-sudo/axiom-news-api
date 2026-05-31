@@ -3,6 +3,9 @@ const cors = require('cors');
 const cron = require('node-cron');
 require('dotenv').config();
 
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
 const { scrapeTopHeadlines } = require('./scraper');
 const { extractDeterministicFacts } = require('./gemini');
 
@@ -12,9 +15,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 4001;
 
-// In-memory cache of the latest stripped news
-let liveNewsCache = [];
-
 async function runNewsPipeline() {
     console.log(`[${new Date().toISOString()}] Starting Axiom News Pipeline...`);
     
@@ -22,27 +22,38 @@ async function runNewsPipeline() {
     const rawArticles = await scrapeTopHeadlines();
     console.log(`Scraped ${rawArticles.length} raw articles.`);
 
-    const processedArticles = [];
-
-    // 2. Process each article through Gemini sequentially to respect rate limits
+    // 2. Process each article through Gemini sequentially
     for (const raw of rawArticles) {
         console.log(`Processing: ${raw.source} - ${raw.rawText.substring(0, 40)}...`);
+        
+        // Prevent duplicate processing based on raw text
+        const existing = await prisma.article.findFirst({
+            where: { originalText: raw.originalText }
+        });
+        
+        if (existing) {
+            console.log(`[SKIP] Already processed: ${raw.source}`);
+            continue;
+        }
+
         const deterministicData = await extractDeterministicFacts(raw.rawText, raw.source);
         
         if (deterministicData) {
-            processedArticles.push({
-                id: raw.id,
-                publisherId: raw.publisherId,
-                timestamp: raw.timestamp,
-                coreEvent: deterministicData.coreEvent,
-                processTimeline: deterministicData.processTimeline,
-                source: raw.source,
-                biasScore: deterministicData.biasScore,
-                originalText: raw.originalText,
-                strippedTerms: deterministicData.strippedTerms,
-                isSatire: false
+            await prisma.article.create({
+                data: {
+                    id: raw.id,
+                    publisherId: raw.publisherId,
+                    source: raw.source,
+                    timestamp: new Date(raw.timestamp),
+                    coreEvent: deterministicData.coreEvent,
+                    processTimeline: deterministicData.processTimeline,
+                    biasScore: deterministicData.biasScore,
+                    originalText: raw.originalText,
+                    strippedTerms: deterministicData.strippedTerms,
+                    isSatire: false
+                }
             });
-            console.log(`[SUCCESS] Stripped Bias: ${deterministicData.biasScore}%`);
+            console.log(`[SUCCESS] Saved to DB. Stripped Bias: ${deterministicData.biasScore}%`);
         } else {
             console.log(`[FAILED] Could not process ${raw.source}`);
         }
@@ -50,16 +61,20 @@ async function runNewsPipeline() {
         // Wait 2 seconds between calls to avoid hitting Gemini rate limits
         await new Promise(resolve => setTimeout(resolve, 2000));
     }
-
-    if (processedArticles.length > 0) {
-        liveNewsCache = processedArticles;
-        console.log(`[COMPLETE] Pipeline finished. Cached ${liveNewsCache.length} live articles.`);
-    }
 }
 
 // Endpoint for the React Frontend to fetch the live feed
-app.get('/v1/feed', (req, res) => {
-    res.json(liveNewsCache);
+app.get('/v1/feed', async (req, res) => {
+    try {
+        const articles = await prisma.article.findMany({
+            orderBy: { timestamp: 'desc' },
+            take: 50
+        });
+        res.json(articles);
+    } catch (error) {
+        console.error("Database query failed:", error);
+        res.status(500).json({ error: "Failed to fetch live feed" });
+    }
 });
 
 // Run pipeline every 60 minutes
@@ -68,8 +83,16 @@ cron.schedule('0 * * * *', () => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
-    // Run the pipeline immediately on startup to populate cache
-    runNewsPipeline();
+    // Run pipeline immediately to seed if empty
+    try {
+        const count = await prisma.article.count();
+        if (count === 0) {
+            console.log("Database empty, running initial pipeline...");
+            runNewsPipeline();
+        }
+    } catch (e) {
+        console.log("Waiting for database...");
+    }
 });
