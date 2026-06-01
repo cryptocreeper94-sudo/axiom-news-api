@@ -101,11 +101,8 @@ cron.schedule('0 * * * *', () => {
 // Start server
 app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
-    // WIPE DB ON STARTUP TO ENSURE PRISTINE NEW SCHEMA
     try {
-        console.log("Wiping legacy articles from database...");
-        await prisma.article.deleteMany({});
-        console.log("Database wiped. Running initial pipeline...");
+        console.log("Starting initial pipeline on boot...");
         runNewsPipeline();
     } catch (e) {
         console.error("Database wipe failed:", e.message);
