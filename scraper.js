@@ -20,24 +20,24 @@ async function scrapeTopHeadlines() {
             const response = await axios.get(feed.url, { timeout: 10000 });
             const $ = cheerio.load(response.data, { xmlMode: true });
 
-            // Grab the very first <item> from the feed
-            const firstItem = $('item').first();
-            if (firstItem.length > 0) {
-                const title = firstItem.find('title').text();
-                const description = firstItem.find('description').text();
+            // Grab the top 5 <item>s from the feed
+            const items = $('item').slice(0, 5);
+            items.each((index, el) => {
+                const title = $(el).find('title').text();
+                const description = $(el).find('description').text();
                 
                 // Remove HTML tags from description if any
                 const cleanDesc = description.replace(/<[^>]*>?/gm, '').trim();
 
                 rawArticles.push({
-                    id: `ax-${Date.now()}-${feed.publisherId}`,
+                    id: `ax-${Date.now()}-${feed.publisherId}-${index}`,
                     publisherId: feed.publisherId,
                     source: feed.name,
                     timestamp: new Date().toISOString(),
                     rawText: `${title}. ${cleanDesc}`,
                     originalText: `${title}. ${cleanDesc}`
                 });
-            }
+            });
         } catch (error) {
             console.error(`Failed to fetch ${feed.name}:`, error.message);
         }

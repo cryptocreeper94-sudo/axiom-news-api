@@ -1,44 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const cron = require('node-cron');
-require('dotenv').config();
+import re
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+with open('server.js', 'r', encoding='utf-8') as f:
+    content = f.read()
 
-const { scrapeTopHeadlines } = require('./scraper');
-const { extractDeterministicFacts } = require('./gemini');
+# 1. Update the db record creation
+old_db = """        if (deterministicData) {
+            await prisma.article.create({
+                data: {
+                    id: raw.id,
+                    publisherId: raw.publisherId,
+                    source: raw.source,
+                    timestamp: new Date(raw.timestamp),
+                    coreEvent: deterministicData.coreEvent,
+                    processTimeline: deterministicData.processTimeline,
+                    biasScore: deterministicData.biasScore,
+                    originalText: raw.originalText,
+                    strippedTerms: deterministicData.strippedTerms,
+                    isSatire: false
+                }
+            });"""
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const PORT = process.env.PORT || 4001;
-
-async function runNewsPipeline() {
-    console.log(`[${new Date().toISOString()}] Starting Axiom News Pipeline...`);
-    
-    // 1. Scrape raw news
-    const rawArticles = await scrapeTopHeadlines();
-    console.log(`Scraped ${rawArticles.length} raw articles.`);
-
-    // 2. Process each article through Gemini sequentially
-    for (const raw of rawArticles) {
-        console.log(`Processing: ${raw.source} - ${raw.rawText.substring(0, 40)}...`);
-        
-        // Prevent duplicate processing based on raw text
-        const existing = await prisma.article.findFirst({
-            where: { originalText: raw.originalText }
-        });
-        
-        if (existing) {
-            console.log(`[SKIP] Already processed: ${raw.source}`);
-            continue;
-        }
-
-        const deterministicData = await extractDeterministicFacts(raw.rawText, raw.source);
-        
-        if (deterministicData) {
+new_db = """        if (deterministicData) {
             let finalImage = null;
             if (deterministicData.imageKeyword && Math.random() > 0.5) {
                 finalImage = `https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&q=80&w=800`; // Backup image
@@ -68,40 +50,21 @@ async function runNewsPipeline() {
                     category: deterministicData.category || 'World',
                     image: finalImage
                 }
-            });
-            console.log(`[SUCCESS] Saved to DB. Stripped Bias: ${deterministicData.biasScore}%`);
-        } else {
-            console.log(`[FAILED] Could not process ${raw.source}`);
-        }
-        
-        // Wait 2 seconds between calls to avoid hitting Gemini rate limits
-        await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-}
+            });"""
 
-// Endpoint for the React Frontend to fetch the live feed
-app.get('/v1/feed', async (req, res) => {
+# 2. Update the wipe logic on startup
+old_startup = """    // Run pipeline immediately to seed if empty
     try {
-        const articles = await prisma.article.findMany({
-            orderBy: { timestamp: 'desc' },
-            take: 50
-        });
-        res.json(articles);
-    } catch (error) {
-        console.error("Database query failed:", error);
-        res.status(500).json({ error: "Failed to fetch live feed" });
-    }
-});
+        const count = await prisma.article.count();
+        if (count === 0) {
+            console.log("Database empty, running initial pipeline...");
+            runNewsPipeline();
+        }
+    } catch (e) {
+        console.log("Waiting for database...");
+    }"""
 
-// Run pipeline every 60 minutes
-cron.schedule('0 * * * *', () => {
-    runNewsPipeline();
-});
-
-// Start server
-app.listen(PORT, async () => {
-    console.log(`Axiom News API listening on port ${PORT}`);
-    // WIPE DB ON STARTUP TO ENSURE PRISTINE NEW SCHEMA
+new_startup = """    // WIPE DB ON STARTUP TO ENSURE PRISTINE NEW SCHEMA
     try {
         console.log("Wiping legacy articles from database...");
         await prisma.article.deleteMany({});
@@ -109,5 +72,12 @@ app.listen(PORT, async () => {
         runNewsPipeline();
     } catch (e) {
         console.error("Database wipe failed:", e.message);
-    }
-});
+    }"""
+
+content = content.replace(old_db, new_db)
+content = content.replace(old_startup, new_startup)
+
+with open('server.js', 'w', encoding='utf-8') as f:
+    f.write(content)
+
+print("Server.js patched!")

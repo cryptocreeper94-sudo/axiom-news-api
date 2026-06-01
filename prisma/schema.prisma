@@ -18,6 +18,8 @@ model Article {
   originalText    String
   strippedTerms   String[]
   isSatire        Boolean  @default(false)
+  category        String?  @default("World")
+  image           String?
   createdAt       DateTime @default(now())
 
   @@index([publisherId])
