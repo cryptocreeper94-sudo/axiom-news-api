@@ -19,9 +19,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "node-cron": "^4.2.1"
-  },
-  "devDependencies": {
+    "node-cron": "^4.2.1",
     "@prisma/client": "^5.22.0",
     "prisma": "^5.22.0"
   }
