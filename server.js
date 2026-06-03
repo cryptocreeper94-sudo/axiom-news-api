@@ -13,6 +13,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get('/ping', (req, res) => res.status(200).send('pong'));
+
 const PORT = process.env.PORT || 4001;
 
 async function runNewsPipeline() {
@@ -103,8 +105,15 @@ app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
     try {
         console.log("Starting initial pipeline on boot...");
-        runNewsPipeline();
+        runNewsPipeline().catch(e => console.error("Pipeline crashed on boot:", e));
     } catch (e) {
         console.error("Database wipe failed:", e.message);
     }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception thrown:', err);
 });
