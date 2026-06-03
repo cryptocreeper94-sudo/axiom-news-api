@@ -20,11 +20,22 @@ async function scrapeTopHeadlines() {
             const response = await axios.get(feed.url, { timeout: 10000 });
             const $ = cheerio.load(response.data, { xmlMode: true });
 
-            // Grab the top 5 <item>s from the feed
             const items = $('item').slice(0, 5);
             items.each((index, el) => {
                 const title = $(el).find('title').text();
                 const description = $(el).find('description').text();
+                
+                // Try multiple ways to get image
+                let imageUrl = null;
+                const mediaContent = $(el).find('media\\:content, content').attr('url');
+                if (mediaContent) imageUrl = mediaContent;
+                
+                if (!imageUrl) {
+                    const enclosure = $(el).find('enclosure').attr('url');
+                    if (enclosure && $(el).find('enclosure').attr('type')?.startsWith('image')) {
+                        imageUrl = enclosure;
+                    }
+                }
                 
                 // Remove HTML tags from description if any
                 const cleanDesc = description.replace(/<[^>]*>?/gm, '').trim();
@@ -35,7 +46,8 @@ async function scrapeTopHeadlines() {
                     source: feed.name,
                     timestamp: new Date().toISOString(),
                     rawText: `${title}. ${cleanDesc}`,
-                    originalText: `${title}. ${cleanDesc}`
+                    originalText: `${title}. ${cleanDesc}`,
+                    imageUrl: imageUrl
                 });
             });
         } catch (error) {

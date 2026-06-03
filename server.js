@@ -43,14 +43,10 @@ async function runNewsPipeline() {
         const deterministicData = await extractDeterministicFacts(raw.rawText, raw.source);
         
         if (deterministicData) {
-            let finalImage = null;
-            if (deterministicData.imageKeyword && Math.random() > 0.5) {
-                finalImage = `https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&q=80&w=800`; // Backup image
-                // In a production environment we would fetch from Unsplash API: 
-                // finalImage = `https://source.unsplash.com/800x400/?${encodeURIComponent(deterministicData.imageKeyword)}`;
-                // Because source.unsplash is deprecated, we will just use a generic premium image or rely on the keyword if we integrate an API.
-                // For now, let's use a dynamic search string via an alternative like placehold.co or just a curated Unsplash ID array in real code.
-                // Actually, let's use the premium Unsplash API format if we assume the frontend will handle it, or we just leave it as a high-quality placeholder for this demo:
+            let finalImage = raw.imageUrl;
+            
+            if (!finalImage && deterministicData.imageKeyword && Math.random() > 0.5) {
+                // Backup images if RSS didn't provide one
                 finalImage = `https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=800`; 
                 if (deterministicData.category === 'Finance') finalImage = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800';
                 if (deterministicData.category === 'Politics') finalImage = 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?auto=format&fit=crop&q=80&w=800';
