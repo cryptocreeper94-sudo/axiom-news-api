@@ -45,12 +45,16 @@ async function runNewsPipeline() {
         if (deterministicData) {
             let finalImage = raw.imageUrl;
             
-            if (!finalImage && deterministicData.imageKeyword && Math.random() > 0.5) {
-                // Backup images if RSS didn't provide one
-                finalImage = `https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=800`; 
-                if (deterministicData.category === 'Finance') finalImage = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800';
-                if (deterministicData.category === 'Politics') finalImage = 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?auto=format&fit=crop&q=80&w=800';
-                if (deterministicData.category === 'Technology') finalImage = 'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&q=80&w=800';
+            // Always provide a category-appropriate fallback if RSS had no image
+            if (!finalImage) {
+                const categoryImages = {
+                    'Finance': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
+                    'Politics': 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?auto=format&fit=crop&q=80&w=800',
+                    'Technology': 'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&q=80&w=800',
+                    'World': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800',
+                    'Science': 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800',
+                };
+                finalImage = categoryImages[deterministicData.category] || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=800';
             }
 
             await prisma.article.create({

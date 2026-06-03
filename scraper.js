@@ -25,16 +25,43 @@ async function scrapeTopHeadlines() {
                 const title = $(el).find('title').text();
                 const description = $(el).find('description').text();
                 
-                // Try multiple ways to get image
+                // Try multiple ways to get image from RSS
                 let imageUrl = null;
-                const mediaContent = $(el).find('media\\:content, content').attr('url');
+                
+                // 1. media:content url attr (most common for news RSS)
+                const mediaContent = $(el).find('media\\:content').attr('url');
                 if (mediaContent) imageUrl = mediaContent;
                 
+                // 2. media:thumbnail
+                if (!imageUrl) {
+                    const mediaThumbnail = $(el).find('media\\:thumbnail').attr('url');
+                    if (mediaThumbnail) imageUrl = mediaThumbnail;
+                }
+                
+                // 3. enclosure with image type
                 if (!imageUrl) {
                     const enclosure = $(el).find('enclosure').attr('url');
-                    if (enclosure && $(el).find('enclosure').attr('type')?.startsWith('image')) {
+                    const encType = $(el).find('enclosure').attr('type') || '';
+                    if (enclosure && (encType.startsWith('image') || enclosure.match(/\.(jpg|jpeg|png|webp|gif)/i))) {
                         imageUrl = enclosure;
                     }
+                }
+                
+                // 4. Extract <img> from content:encoded or description CDATA
+                if (!imageUrl) {
+                    const contentEncoded = $(el).find('content\\:encoded').text() || '';
+                    const descriptionRaw = $(el).find('description').html() || '';
+                    const htmlContent = contentEncoded || descriptionRaw;
+                    const imgMatch = htmlContent.match(/<img[^>]+src=["']([^"']+)["']/i);
+                    if (imgMatch && imgMatch[1]) {
+                        imageUrl = imgMatch[1];
+                    }
+                }
+                
+                // 5. Look for any url attribute on media:group children
+                if (!imageUrl) {
+                    const mediaGroup = $(el).find('media\\:group media\\:content').attr('url');
+                    if (mediaGroup) imageUrl = mediaGroup;
                 }
                 
                 // Remove HTML tags from description if any
