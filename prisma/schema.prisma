@@ -20,6 +20,7 @@ model Article {
   isSatire        Boolean  @default(false)
   category        String?  @default("World")
   image           String?
+  deterministicRewrite String?
   createdAt       DateTime @default(now())
 
   @@index([publisherId])

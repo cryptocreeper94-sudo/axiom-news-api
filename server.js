@@ -68,6 +68,7 @@ async function runNewsPipeline() {
                     biasScore: deterministicData.biasScore,
                     originalText: raw.originalText,
                     strippedTerms: deterministicData.strippedTerms,
+                    deterministicRewrite: deterministicData.deterministicRewrite || null,
                     isSatire: false,
                     category: deterministicData.category || 'World',
                     image: finalImage
@@ -90,15 +91,15 @@ app.get('/v1/feed', async (req, res) => {
             orderBy: { timestamp: 'desc' },
             take: 50
         });
-        res.json(articles);
+        res.json({ articles, lastUpdated: new Date().toISOString() });
     } catch (error) {
         console.error("Database query failed:", error);
         res.status(500).json({ error: "Failed to fetch live feed" });
     }
 });
 
-// Run pipeline every 60 minutes
-cron.schedule('0 * * * *', () => {
+// Run pipeline every 30 minutes
+cron.schedule('*/30 * * * *', () => {
     runNewsPipeline();
 });
 

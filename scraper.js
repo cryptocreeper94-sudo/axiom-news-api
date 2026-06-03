@@ -8,7 +8,12 @@ const FEEDS = [
     { publisherId: 'wapo', name: 'Washington Post', url: 'https://feeds.washingtonpost.com/rss/world' },
     { publisherId: 'bbc', name: 'BBC News', url: 'http://feeds.bbci.co.uk/news/world/rss.xml' },
     { publisherId: 'politico', name: 'Politico', url: 'https://rss.politico.com/politics-news.xml' },
-    { publisherId: 'breitbart', name: 'Breitbart', url: 'https://feeds.feedburner.com/breitbart' }
+    { publisherId: 'breitbart', name: 'Breitbart', url: 'https://feeds.feedburner.com/breitbart' },
+    { publisherId: 'cnn', name: 'CNN', url: 'http://rss.cnn.com/rss/cnn_topstories.rss' },
+    { publisherId: 'ap', name: 'AP News', url: 'https://rsshub.app/apnews/topics/apf-topnews' },
+    { publisherId: 'reuters', name: 'Reuters', url: 'https://rsshub.app/reuters/world' },
+    { publisherId: 'huffpost', name: 'HuffPost', url: 'https://www.huffpost.com/section/front-page/feed' },
+    { publisherId: 'infowars', name: 'InfoWars', url: 'https://www.infowars.com/rss.xml' }
 ];
 
 async function scrapeTopHeadlines() {

@@ -23,7 +23,8 @@ You must return a raw JSON object exactly matching this schema (do not wrap in m
         "Factual event step 3"
     ],
     "biasScore": 0-100 (integer representing how emotionally charged or biased the original text was. 0 = purely factual, 100 = completely unhinged propaganda),
-    "strippedTerms": ["list", "of", "exact", "words", "or", "phrases", "you", "stripped", "from", "the", "raw", "text", "because", "they", "were", "biased"]
+    "strippedTerms": ["list", "of", "exact", "words", "or", "phrases", "you", "stripped", "from", "the", "raw", "text", "because", "they", "were", "biased", "e.g.", "slammed", "devastating", "reckless"],
+    "deterministicRewrite": "A full paragraph synthesized strictly from verified facts. No editorial language, no adjectives of opinion, no attribution of motive."
 }
 `;
 
