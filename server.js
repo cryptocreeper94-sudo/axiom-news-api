@@ -45,8 +45,10 @@ async function runNewsPipeline() {
         if (deterministicData) {
             let finalImage = raw.imageUrl;
             
-            // Always provide a category-appropriate fallback if RSS had no image
-            if (!finalImage) {
+            // Sync images to the subject matter using deterministic keyword generation
+            if (deterministicData.imageKeyword && deterministicData.imageKeyword !== 'null') {
+                finalImage = `https://image.pollinations.ai/prompt/${encodeURIComponent(`Photorealistic editorial news photography of ${deterministicData.imageKeyword}`)}?width=800&height=600&nologo=true`;
+            } else if (!finalImage) {
                 const categoryImages = {
                     'Finance': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
                     'Politics': 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?auto=format&fit=crop&q=80&w=800',
