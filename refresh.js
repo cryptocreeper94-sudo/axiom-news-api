@@ -61,7 +61,24 @@ async function refresh() {
             console.log(`   ✅ Saved (bias: ${deterministicData.biasScore}%, image: ${finalImage ? 'YES' : 'NO'})`);
         } else {
             failed++;
-            console.log(`   ❌ Gemini processing failed`);
+            console.log(`   ❌ Gemini processing failed. Flagging to prevent retry loop.`);
+            await prisma.article.create({
+                data: {
+                    id: raw.id,
+                    publisherId: raw.publisherId,
+                    source: raw.source,
+                    timestamp: new Date(raw.timestamp),
+                    coreEvent: "PROCESS_FAILED",
+                    processTimeline: [],
+                    biasScore: -1,
+                    originalText: raw.originalText,
+                    strippedTerms: [],
+                    deterministicRewrite: null,
+                    isSatire: false,
+                    category: 'World',
+                    image: null
+                }
+            });
         }
         await new Promise(resolve => setTimeout(resolve, 2000));
     }

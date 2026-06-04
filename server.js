@@ -78,7 +78,24 @@ async function runNewsPipeline() {
             });
             console.log(`[SUCCESS] Saved to DB. Stripped Bias: ${deterministicData.biasScore}%`);
         } else {
-            console.log(`[FAILED] Could not process ${raw.source}`);
+            console.log(`[FAILED] Could not process ${raw.source} - Flagging to prevent retry loop`);
+            await prisma.article.create({
+                data: {
+                    id: raw.id,
+                    publisherId: raw.publisherId,
+                    source: raw.source,
+                    timestamp: new Date(raw.timestamp),
+                    coreEvent: "PROCESS_FAILED",
+                    processTimeline: [],
+                    biasScore: -1,
+                    originalText: raw.originalText,
+                    strippedTerms: [],
+                    deterministicRewrite: null,
+                    isSatire: false,
+                    category: 'World',
+                    image: null
+                }
+            });
         }
         
         // Wait 2 seconds between calls to avoid hitting Gemini rate limits
@@ -90,6 +107,11 @@ async function runNewsPipeline() {
 app.get('/v1/feed', async (req, res) => {
     try {
         const articles = await prisma.article.findMany({
+            where: {
+                coreEvent: {
+                    not: "PROCESS_FAILED"
+                }
+            },
             orderBy: { timestamp: 'desc' },
             take: 50
         });
