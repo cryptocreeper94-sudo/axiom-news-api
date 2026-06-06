@@ -10,10 +10,12 @@ const FEEDS = [
     { publisherId: 'politico', name: 'Politico', url: 'https://rss.politico.com/politics-news.xml' },
     { publisherId: 'breitbart', name: 'Breitbart', url: 'https://feeds.feedburner.com/breitbart' },
     { publisherId: 'cnn', name: 'CNN', url: 'http://rss.cnn.com/rss/cnn_topstories.rss' },
-    { publisherId: 'ap', name: 'AP News', url: 'https://rsshub.app/apnews/topics/apf-topnews' },
-    { publisherId: 'reuters', name: 'Reuters', url: 'https://rsshub.app/reuters/world' },
-    { publisherId: 'huffpost', name: 'HuffPost', url: 'https://www.huffpost.com/section/front-page/feed' },
-    { publisherId: 'infowars', name: 'InfoWars', url: 'https://www.infowars.com/rss.xml' }
+    { publisherId: 'nypost', name: 'New York Post', url: 'https://nypost.com/feed/' },
+    { publisherId: 'intercept', name: 'The Intercept', url: 'https://theintercept.com/feed/?lang=en' },
+    { publisherId: 'salon', name: 'Salon', url: 'https://www.salon.com/feed/' },
+    { publisherId: 'gateway', name: 'The Gateway Pundit', url: 'https://www.thegatewaypundit.com/feed/' },
+    { publisherId: 'satire', name: 'The Onion', url: 'https://www.theonion.com/rss' },
+    { publisherId: 'satire', name: 'Babylon Bee', url: 'https://babylonbee.com/feed' }
 ];
 
 async function scrapeTopHeadlines() {
@@ -22,10 +24,13 @@ async function scrapeTopHeadlines() {
     for (const feed of FEEDS) {
         try {
             console.log(`Fetching RSS for ${feed.name}...`);
-            const response = await axios.get(feed.url, { timeout: 10000 });
+            const response = await axios.get(feed.url, { 
+                timeout: 20000,
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+            });
             const $ = cheerio.load(response.data, { xmlMode: true });
 
-            const items = $('item').slice(0, 5);
+            const items = $('item').slice(0, 15);
             items.each((index, el) => {
                 const title = $(el).find('title').text();
                 const description = $(el).find('description').text();
@@ -72,13 +77,20 @@ async function scrapeTopHeadlines() {
                 // Remove HTML tags from description if any
                 const cleanDesc = description.replace(/<[^>]*>?/gm, '').trim();
 
+                // Create a deterministic ID based on the title so we don't re-process the exact same articles
+                const crypto = require('crypto');
+                const titleHash = crypto.createHash('md5').update(title).digest('hex').substring(0, 12);
+
+                // Extract the link to the original article
+                const articleUrl = $(el).find('link').text() || '';
+
                 rawArticles.push({
-                    id: `ax-${Date.now()}-${feed.publisherId}-${index}`,
+                    id: `ax-${feed.publisherId}-${titleHash}`,
                     publisherId: feed.publisherId,
                     source: feed.name,
                     timestamp: new Date().toISOString(),
                     rawText: `${title}. ${cleanDesc}`,
-                    originalText: `${title}. ${cleanDesc}`,
+                    originalText: `${title}. ${cleanDesc} | URL: ${articleUrl}`,
                     imageUrl: imageUrl
                 });
             });
