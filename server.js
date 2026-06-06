@@ -10,6 +10,7 @@ const prisma = new PrismaClient();
 
 const { scrapeTopHeadlines } = require('./scraper');
 const { extractDeterministicFacts } = require('./gemini');
+const { getLocalNews } = require('./localScraper');
 
 const app = express();
 app.use(cors());
@@ -49,13 +50,40 @@ async function runNewsPipeline() {
             // We now strictly use the raw source image, or fall back to high-quality Unsplash category images.
             if (!finalImage) {
                 const categoryImages = {
-                    'Finance': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=800',
-                    'Politics': 'https://images.unsplash.com/photo-1555848962-6e79363ec58f?auto=format&fit=crop&q=80&w=800',
-                    'Technology': 'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&q=80&w=800',
-                    'World': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800',
-                    'Science': 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=800',
+                    'Finance': [
+                        'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3',
+                        'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f',
+                        'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e',
+                        'https://images.unsplash.com/photo-1579532537598-459ecdaf39cc'
+                    ],
+                    'Politics': [
+                        'https://images.unsplash.com/photo-1555848962-6e79363ec58f',
+                        'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620',
+                        'https://images.unsplash.com/photo-1541872703-74c5e44368f9',
+                        'https://images.unsplash.com/photo-1554151228-14d9def656e4'
+                    ],
+                    'Technology': [
+                        'https://images.unsplash.com/photo-1517976487492-5750f3195933',
+                        'https://images.unsplash.com/photo-1518770660439-4636190af475',
+                        'https://images.unsplash.com/photo-1451187580459-43490279c0fa',
+                        'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5'
+                    ],
+                    'World': [
+                        'https://images.unsplash.com/photo-1451187580459-43490279c0fa',
+                        'https://images.unsplash.com/photo-1521295121783-8a321d551ad2',
+                        'https://images.unsplash.com/photo-1507413245164-6160d8298b31',
+                        'https://images.unsplash.com/photo-1524661135-423995f22d0b'
+                    ],
+                    'Science': [
+                        'https://images.unsplash.com/photo-1507413245164-6160d8298b31',
+                        'https://images.unsplash.com/photo-1532094349884-543bc11b234d',
+                        'https://images.unsplash.com/photo-1530026405186-ed1f139313f8',
+                        'https://images.unsplash.com/photo-1518152006812-edab29b069fc'
+                    ]
                 };
-                finalImage = categoryImages[deterministicData.category] || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=800';
+                const arr = categoryImages[deterministicData.category] || categoryImages['World'];
+                const randomBase = arr[Math.floor(Math.random() * arr.length)];
+                finalImage = `${randomBase}?auto=format&fit=crop&q=80&w=800`;
             }
 
             await prisma.article.create({
@@ -70,7 +98,7 @@ async function runNewsPipeline() {
                     originalText: raw.originalText,
                     strippedTerms: deterministicData.strippedTerms,
                     deterministicRewrite: deterministicData.deterministicRewrite || null,
-                    isSatire: false,
+                    isSatire: raw.publisherId === 'satire',
                     category: deterministicData.category || 'World',
                     image: finalImage
                 }
@@ -90,7 +118,7 @@ async function runNewsPipeline() {
                     originalText: raw.originalText,
                     strippedTerms: [],
                     deterministicRewrite: null,
-                    isSatire: false,
+                    isSatire: raw.publisherId === 'satire',
                     category: 'World',
                     image: null
                 }
@@ -112,12 +140,28 @@ app.get('/v1/feed', async (req, res) => {
                 }
             },
             orderBy: { timestamp: 'desc' },
-            take: 50
+            take: 250
         });
         res.json({ articles, lastUpdated: new Date().toISOString() });
     } catch (error) {
         console.error("Database query failed:", error);
         res.status(500).json({ error: "Failed to fetch live feed" });
+    }
+});
+
+// Endpoint for Local News aggregation
+app.get('/v1/local', async (req, res) => {
+    const { zip } = req.query;
+    if (!zip || zip.length !== 5) {
+        return res.status(400).json({ error: "Valid 5-digit ZIP code required" });
+    }
+    
+    try {
+        const localData = await getLocalNews(zip);
+        res.json(localData);
+    } catch (error) {
+        console.error("Local route error:", error.message);
+        res.status(500).json({ error: "Failed to load local news pipeline" });
     }
 });
 
