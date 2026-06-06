@@ -21,6 +21,7 @@ model Article {
   category        String?  @default("World")
   image           String?
   deterministicRewrite String?
+  author          String?
   createdAt       DateTime @default(now())
 
   @@index([publisherId])

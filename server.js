@@ -100,7 +100,8 @@ async function runNewsPipeline() {
                     deterministicRewrite: deterministicData.deterministicRewrite || null,
                     isSatire: raw.publisherId === 'satire',
                     category: deterministicData.category || 'World',
-                    image: finalImage
+                    image: finalImage,
+                    author: deterministicData.author || 'Staff'
                 }
             });
             console.log(`[SUCCESS] Saved to DB. Stripped Bias: ${deterministicData.biasScore}%`);
@@ -120,7 +121,8 @@ async function runNewsPipeline() {
                     deterministicRewrite: null,
                     isSatire: raw.publisherId === 'satire',
                     category: 'World',
-                    image: null
+                    image: null,
+                    author: 'Staff'
                 }
             });
         }

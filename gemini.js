@@ -24,7 +24,8 @@ You must return a raw JSON object exactly matching this schema (do not wrap in m
     ],
     "biasScore": 0-100 (integer representing how emotionally charged or biased the original text was. 0 = purely factual, 100 = completely unhinged propaganda),
     "strippedTerms": ["list", "of", "exact", "words", "or", "phrases", "you", "stripped", "from", "the", "raw", "text", "because", "they", "were", "biased", "e.g.", "slammed", "devastating", "reckless"],
-    "deterministicRewrite": "A full paragraph synthesized strictly from verified facts. No editorial language, no adjectives of opinion, no attribution of motive."
+    "deterministicRewrite": "A full paragraph synthesized strictly from verified facts. No editorial language, no adjectives of opinion, no attribution of motive.",
+    "author": "Extract the author's full name if explicitly stated in the text (e.g. 'By John Doe'). If multiple authors, list them separated by commas. If no author is clearly attributed, return 'Staff'."
 }
 `;
 
@@ -95,7 +96,8 @@ You must return a raw JSON object exactly matching this schema (do not wrap in m
             ],
             biasScore: calculatedBias,
             strippedTerms: loudWords,
-            deterministicRewrite: loudWords.length > 0 ? `The timeline of events was validated locally via the deterministic engine fallback. The original text contained subjective framing (${loudWords.join(', ')}) which has been mathematically neutralized.` : "The timeline of events was validated locally. The original text passed basic heuristic scans with minimal detected bias."
+            deterministicRewrite: loudWords.length > 0 ? `The timeline of events was validated locally via the deterministic engine fallback. The original text contained subjective framing (${loudWords.join(', ')}) which has been mathematically neutralized.` : "The timeline of events was validated locally. The original text passed basic heuristic scans with minimal detected bias.",
+            author: "Staff"
         };
     }
 }
