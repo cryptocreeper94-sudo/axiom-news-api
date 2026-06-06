@@ -122,8 +122,8 @@ app.get('/v1/feed', async (req, res) => {
     }
 });
 
-// Run pipeline every 30 minutes
-cron.schedule('*/30 * * * *', () => {
+// Run pipeline twice a day (every 12 hours) to simulate Drudge Report cadence
+cron.schedule('0 */12 * * *', () => {
     runNewsPipeline();
 });
 
