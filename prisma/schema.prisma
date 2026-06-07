@@ -27,6 +27,7 @@ model Article {
   createdAt       DateTime @default(now())
   
   prediction      NarrativePrediction?
+  civicsContext   ConstitutionalContext?
 
   @@index([publisherId])
   @@index([timestamp])
@@ -87,4 +88,17 @@ model PredictionFeature {
   isSatire               Int      // 0 or 1
   
   createdAt              DateTime @default(now())
+}
+
+model ConstitutionalContext {
+  id              String   @id @default(uuid())
+  articleId       String   @unique
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  amendment       String   // e.g., "First Amendment"
+  verbatimText    String   // The actual text from the Constitution
+  laymanTerms     String   // Unbiased, deterministic explanation
+  relevance       String   // How it applies to the article
+  
+  createdAt       DateTime @default(now())
 }

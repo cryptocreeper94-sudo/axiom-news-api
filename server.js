@@ -14,10 +14,14 @@ const { scrapeTopHeadlines } = require('./scraper');
 const { extractDeterministicFacts } = require('./gemini');
 const { getLocalNews } = require('./localScraper');
 const pulseEngine = require('./pulseEngine');
+const { extractAndSaveCivicsContext } = require('./civicsEngine');
+const agentRoutes = require('./agentRoutes');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.use('/v1/agent', agentRoutes);
 
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN 
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) 
@@ -156,6 +160,9 @@ async function runNewsPipeline() {
             // Integrate Pulse Engine
             await pulseEngine.generatePrediction(raw.id, deterministicData, raw.originalText, raw.publisherId);
             
+            // Extract Civics Context
+            await extractAndSaveCivicsContext(raw.id, raw.originalText);
+            
         } else {
             console.log(`[FAILED] Could not process ${raw.source} - Flagging to prevent retry loop`);
             await prisma.article.upsert({
@@ -202,7 +209,7 @@ app.get('/v1/feed', async (req, res) => {
             },
             orderBy: { timestamp: 'desc' },
             take: 250,
-            include: { prediction: true }
+            include: { prediction: true, civicsContext: true }
         });
         res.json({ articles, lastUpdated: new Date().toISOString() });
     } catch (error) {
