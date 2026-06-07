@@ -151,6 +151,66 @@ app.get('/v1/feed', async (req, res) => {
     }
 });
 
+// GET Aggregate Scores
+app.get('/v1/aggregate', async (req, res) => {
+    try {
+        const articles = await prisma.article.findMany();
+        const publishers = {};
+        
+        articles.forEach(article => {
+            if (!publishers[article.publisherId]) {
+                publishers[article.publisherId] = { totalScore: 0, count: 0 };
+            }
+            if (article.biasScore !== null && article.biasScore !== undefined) {
+                publishers[article.publisherId].totalScore += article.biasScore;
+                publishers[article.publisherId].count += 1;
+            }
+        });
+
+        const aggregateScores = {};
+        for (const pubId in publishers) {
+            if (publishers[pubId].count > 0) {
+                aggregateScores[pubId] = Math.round(publishers[pubId].totalScore / publishers[pubId].count);
+            }
+        }
+        res.json({ publishers: aggregateScores });
+    } catch (error) {
+        console.error("Failed to calculate aggregate scores:", error);
+        res.status(500).json({ error: "Failed to calculate aggregate scores" });
+    }
+});
+
+// GET Celebrity Spin Zone
+app.get('/v1/spin', async (req, res) => {
+    try {
+        const spinArticle = await prisma.article.findFirst({
+            where: { category: 'Celebrity Spin' },
+            orderBy: { timestamp: 'desc' }
+        });
+        
+        if (spinArticle) {
+            res.json({
+                celebrity: {
+                    id: spinArticle.id,
+                    celebrity: spinArticle.author || "Unknown Celebrity",
+                    source: spinArticle.source,
+                    timestamp: spinArticle.timestamp,
+                    originalHeadline: spinArticle.coreEvent,
+                    originalQuote: spinArticle.originalText,
+                    spinScore: spinArticle.biasScore,
+                    strippedTerms: spinArticle.strippedTerms,
+                    deterministicRewrite: spinArticle.deterministicRewrite
+                }
+            });
+        } else {
+            res.status(404).json({ error: "No celebrity spin found" });
+        }
+    } catch (error) {
+        console.error("Failed to fetch celebrity spin:", error);
+        res.status(500).json({ error: "Failed to fetch celebrity spin" });
+    }
+});
+
 // Endpoint for Local News aggregation
 app.get('/v1/local', async (req, res) => {
     const { zip } = req.query;
