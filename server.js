@@ -13,6 +13,7 @@ const prisma = new PrismaClient();
 const { scrapeTopHeadlines } = require('./scraper');
 const { extractDeterministicFacts } = require('./gemini');
 const { getLocalNews } = require('./localScraper');
+const pulseEngine = require('./pulseEngine');
 
 const app = express();
 app.use(cors());
@@ -38,7 +39,7 @@ cron.schedule('0 8 * * *', async () => {
     for (const sub of subscribers) {
         if (sub.email && resend) {
             await resend.emails.send({
-                from: 'genesis@axiom.com',
+                from: 'Axiom Engine <genesis@axiom42news.com>',
                 to: sub.email,
                 subject: 'Your Daily Genesis Block',
                 text: message
@@ -120,8 +121,18 @@ async function runNewsPipeline() {
                 finalImage = `${randomBase}?auto=format&fit=crop&q=80&w=800`;
             }
 
-            await prisma.article.create({
-                data: {
+            await prisma.article.upsert({
+                where: { id: raw.id },
+                update: {
+                    coreEvent: deterministicData.coreEvent,
+                    processTimeline: deterministicData.processTimeline,
+                    biasScore: deterministicData.biasScore,
+                    strippedTerms: deterministicData.strippedTerms,
+                    deterministicRewrite: deterministicData.deterministicRewrite || null,
+                    image: finalImage,
+                    category: deterministicData.category || 'World',
+                },
+                create: {
                     id: raw.id,
                     publisherId: raw.publisherId,
                     source: raw.source,
@@ -135,14 +146,26 @@ async function runNewsPipeline() {
                     isSatire: raw.publisherId === 'satire',
                     category: deterministicData.category || 'World',
                     image: finalImage,
-                    author: deterministicData.author || 'Staff'
+                    author: deterministicData.author || 'Staff',
+                    trustCertificate: 'LTC-v1.0-' + require('crypto').createHash('sha256').update(JSON.stringify(deterministicData)).digest('hex'),
+                    sourceProofHash: raw.sourceProofHash
                 }
             });
             console.log(`[SUCCESS] Saved to DB. Stripped Bias: ${deterministicData.biasScore}%`);
+            
+            // Integrate Pulse Engine
+            await pulseEngine.generatePrediction(raw.id, deterministicData, raw.originalText, raw.publisherId);
+            
         } else {
             console.log(`[FAILED] Could not process ${raw.source} - Flagging to prevent retry loop`);
-            await prisma.article.create({
-                data: {
+            await prisma.article.upsert({
+                where: { id: raw.id },
+                update: {
+                    coreEvent: "PROCESS_FAILED",
+                    biasScore: -1,
+                    originalText: raw.originalText,
+                },
+                create: {
                     id: raw.id,
                     publisherId: raw.publisherId,
                     source: raw.source,
@@ -156,7 +179,9 @@ async function runNewsPipeline() {
                     isSatire: raw.publisherId === 'satire',
                     category: 'World',
                     image: null,
-                    author: 'Staff'
+                    author: 'Staff',
+                    trustCertificate: 'LTC-v1.0-FAILED',
+                    sourceProofHash: raw.sourceProofHash
                 }
             });
         }
@@ -176,7 +201,8 @@ app.get('/v1/feed', async (req, res) => {
                 }
             },
             orderBy: { timestamp: 'desc' },
-            take: 250
+            take: 250,
+            include: { prediction: true }
         });
         res.json({ articles, lastUpdated: new Date().toISOString() });
     } catch (error) {
@@ -350,6 +376,55 @@ app.get('/v1/related', async (req, res) => {
     }
 });
 
+// GET Pulse Predictions Feed
+app.get('/v1/pulse/predictions', async (req, res) => {
+    try {
+        const predictions = await prisma.narrativePrediction.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+                article: {
+                    select: {
+                        coreEvent: true,
+                        source: true,
+                        image: true,
+                        deterministicRewrite: true,
+                        category: true,
+                        biasScore: true
+                    }
+                },
+                feature: true
+            }
+        });
+        res.json({ predictions });
+    } catch (error) {
+        console.error("Failed to fetch Pulse predictions:", error);
+        res.status(500).json({ error: "Failed to fetch Pulse predictions" });
+    }
+});
+
+// GET Pulse Prediction Stats
+app.get('/v1/pulse/stats', async (req, res) => {
+    try {
+        const total = await prisma.narrativePrediction.count();
+        const highImpact = await prisma.narrativePrediction.count({ where: { signal: 'HIGH' } });
+        const mediumImpact = await prisma.narrativePrediction.count({ where: { signal: 'MEDIUM' } });
+        const lowImpact = await prisma.narrativePrediction.count({ where: { signal: 'LOW' } });
+
+        res.json({
+            totalPredictions: total,
+            signals: {
+                HIGH: highImpact,
+                MEDIUM: mediumImpact,
+                LOW: lowImpact
+            }
+        });
+    } catch (error) {
+        console.error("Failed to fetch Pulse stats:", error);
+        res.status(500).json({ error: "Failed to fetch Pulse stats" });
+    }
+});
+
 // GET Algorithmic Publisher Leaderboard
 app.get('/v1/leaderboard', async (req, res) => {
     try {
@@ -363,8 +438,7 @@ app.get('/v1/leaderboard', async (req, res) => {
                 id: true
             },
             where: {
-                isSatire: false,
-                biasScore: { not: null }
+                isSatire: false
             }
         });
 
@@ -467,7 +541,7 @@ async function broadcastGenesisBlock() {
             for (const sub of emailSubs) {
                 try {
                     await resend.emails.send({
-                        from: 'Axiom Engine <genesis@updates.dwtl.io>',
+                        from: 'Axiom Engine <genesis@axiom42news.com>',
                         to: sub.email,
                         subject: 'Daily Genesis Block [Verified Reality]',
                         html: htmlBody

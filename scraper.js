@@ -84,13 +84,17 @@ async function scrapeTopHeadlines() {
                 // Extract the link to the original article
                 const articleUrl = $(el).find('link').text() || '';
 
+                // Create the cryptographic proof hash for the original source text
+                const rawText = `${title}. ${cleanDesc}`;
+                const sourceProofHash = crypto.createHash('sha256').update(rawText).digest('hex');
+
                 rawArticles.push({
                     id: `ax-${feed.publisherId}-${titleHash}`,
                     publisherId: feed.publisherId,
                     source: feed.name,
                     timestamp: new Date().toISOString(),
-                    rawText: `${title}. ${cleanDesc}`,
-                    originalText: `${title}. ${cleanDesc} | URL: ${articleUrl}`,
+                    rawText: rawText,
+                    originalText: `${rawText} | URL: ${articleUrl}`,
                     imageUrl: imageUrl,
                     sourceProofHash: sourceProofHash
                 });

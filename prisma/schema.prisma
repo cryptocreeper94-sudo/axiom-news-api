@@ -25,6 +25,8 @@ model Article {
   trustCertificate String?
   sourceProofHash  String?
   createdAt       DateTime @default(now())
+  
+  prediction      NarrativePrediction?
 
   @@index([publisherId])
   @@index([timestamp])
@@ -57,4 +59,32 @@ model Subscriber {
   phone     String?  @unique
   createdAt DateTime @default(now())
   active    Boolean  @default(true)
+}
+
+model NarrativePrediction {
+  id              String   @id @default(uuid())
+  articleId       String   @unique
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  signal          String   // HIGH, MEDIUM, LOW impact
+  probability     Float    // 0.0 to 1.0
+  createdAt       DateTime @default(now())
+
+  feature         PredictionFeature?
+  
+  @@index([signal])
+}
+
+model PredictionFeature {
+  id                     String   @id @default(uuid())
+  narrativePredictionId  String   @unique
+  prediction             NarrativePrediction @relation(fields: [narrativePredictionId], references: [id], onDelete: Cascade)
+  
+  // Normalized Features (0 to 1 or -1 to 1)
+  biasScoreNorm          Float
+  spinDensity            Float
+  publisherTrustIndex    Float
+  categoryWeight         Float
+  isSatire               Int      // 0 or 1
+  
+  createdAt              DateTime @default(now())
 }
