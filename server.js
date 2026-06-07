@@ -316,6 +316,42 @@ app.get('/v1/related', async (req, res) => {
     }
 });
 
+// GET Algorithmic Publisher Leaderboard
+app.get('/v1/leaderboard', async (req, res) => {
+    try {
+        // We calculate the average biasScore grouped by publisherId
+        const aggregations = await prisma.article.groupBy({
+            by: ['publisherId'],
+            _avg: {
+                biasScore: true
+            },
+            _count: {
+                id: true
+            },
+            where: {
+                isSatire: false,
+                biasScore: { not: null }
+            }
+        });
+
+        // Filter out publishers with too few articles to be statistically significant,
+        // map to a clean format, and sort by lowest average bias.
+        const leaderboard = aggregations
+            .filter(agg => agg._count.id > 1) 
+            .map(agg => ({
+                publisherId: agg.publisherId,
+                averageBias: Math.round(agg._avg.biasScore),
+                articleCount: agg._count.id
+            }))
+            .sort((a, b) => a.averageBias - b.averageBias);
+
+        res.json(leaderboard);
+    } catch (error) {
+        console.error("Leaderboard endpoint failed:", error);
+        res.status(500).json({ error: "Failed to fetch leaderboard" });
+    }
+});
+
 // Run pipeline twice a day (every 12 hours) to simulate Drudge Report cadence
 cron.schedule('0 */12 * * *', () => {
     runNewsPipeline();
