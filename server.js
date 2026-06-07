@@ -3,6 +3,8 @@ process.env.DATABASE_URL = "postgresql://lume_cortex_user:lxKEqdUQcLDOr1VIiLiSxI
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
+const twilio = require('twilio');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const { PrismaClient } = require('@prisma/client');
@@ -16,9 +18,41 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN 
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) 
+  : null;
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
 app.get('/ping', (req, res) => res.status(200).send('pong'));
 
 const PORT = process.env.PORT || 4001;
+
+// Daily Genesis Block Cron Job
+cron.schedule('0 8 * * *', async () => {
+    console.log('Sending daily Genesis Block update...');
+    const subscribers = await prisma.subscriber.findMany();
+    const latestNews = await prisma.article.findMany({ take: 5, orderBy: { timestamp: 'desc' } });
+    
+    const message = `Genesis Block Daily:\n${latestNews.map(n => `- ${n.coreEvent}`).join('\n')}`;
+
+    for (const sub of subscribers) {
+        if (sub.email && resend) {
+            await resend.emails.send({
+                from: 'genesis@axiom.com',
+                to: sub.email,
+                subject: 'Your Daily Genesis Block',
+                text: message
+            });
+        }
+        if (sub.phone && twilioClient) {
+            await twilioClient.messages.create({
+                body: message,
+                from: process.env.TWILIO_PHONE_NUMBER,
+                to: sub.phone
+            });
+        }
+    }
+});
 
 async function runNewsPipeline() {
     console.log(`[${new Date().toISOString()}] Starting Axiom News Pipeline...`);
@@ -352,9 +386,112 @@ app.get('/v1/leaderboard', async (req, res) => {
     }
 });
 
+// POST Subscribe to Genesis Block
+app.post('/v1/subscribe', async (req, res) => {
+    try {
+        const { email, phone } = req.body;
+        if (!email && !phone) {
+            return res.status(400).json({ error: "Must provide email or phone" });
+        }
+
+        const subscriber = await prisma.subscriber.create({
+            data: { email, phone }
+        });
+
+        res.json({ success: true, message: "Subscribed to the Genesis Block" });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: "Already subscribed" });
+        }
+        console.error("Subscribe failed:", error);
+        res.status(500).json({ error: "Failed to subscribe" });
+    }
+});
+
+// The Daily Genesis Block Job
+async function broadcastGenesisBlock() {
+    console.log(`[${new Date().toISOString()}] Compiling Daily Genesis Block...`);
+    try {
+        // Get the top 5 most purely deterministic (lowest bias) articles from the last 24 hours
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        const topFacts = await prisma.article.findMany({
+            where: {
+                timestamp: { gte: twentyFourHoursAgo },
+                isSatire: false,
+                biasScore: { lte: 10 }
+            },
+            orderBy: { biasScore: 'asc' },
+            take: 5
+        });
+
+        if (topFacts.length === 0) return;
+
+        let digestText = "AXIOM DAILY GENESIS BLOCK\n\n";
+        let htmlBody = `<div style="font-family: monospace; background: #000; color: #10b981; padding: 20px;">
+                        <h2>AXIOM DAILY GENESIS BLOCK</h2>`;
+
+        topFacts.forEach((fact, i) => {
+            const entry = `${i+1}. [LUME-V: ${fact.trustCertificate.substring(0,8)}] ${fact.deterministicRewrite}\n`;
+            digestText += entry;
+            htmlBody += `<p><strong>[LUME-V: ${fact.trustCertificate.substring(0,8)}]</strong> ${fact.deterministicRewrite}</p>`;
+        });
+
+        // Seal the entire digest with a master hash
+        const digestHash = crypto.createHash('sha256').update(digestText).digest('hex');
+        digestText += `\nDIGEST HASH: ${digestHash}\nStay Neutral.`;
+        htmlBody += `<hr style="border-color:#10b98133"/><p>DIGEST HASH: ${digestHash}</p><p>Stay Neutral.</p></div>`;
+
+        // Fetch subscribers
+        const subscribers = await prisma.subscriber.findMany({ where: { active: true } });
+
+        // Dispatch via Twilio (SMS)
+        if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+            const phoneSubs = subscribers.filter(s => s.phone);
+            for (const sub of phoneSubs) {
+                try {
+                    await twilioClient.messages.create({
+                        body: digestText,
+                        from: process.env.TWILIO_PHONE_NUMBER,
+                        to: sub.phone
+                    });
+                } catch (e) {
+                    console.error(`Failed to text ${sub.phone}:`, e.message);
+                }
+            }
+        }
+
+        // Dispatch via Resend (Email)
+        if (resend) {
+            const emailSubs = subscribers.filter(s => s.email);
+            for (const sub of emailSubs) {
+                try {
+                    await resend.emails.send({
+                        from: 'Axiom Engine <genesis@updates.dwtl.io>',
+                        to: sub.email,
+                        subject: 'Daily Genesis Block [Verified Reality]',
+                        html: htmlBody
+                    });
+                } catch (e) {
+                    console.error(`Failed to email ${sub.email}:`, e.message);
+                }
+            }
+        }
+        
+        console.log(`Genesis Block ${digestHash} broadcasted successfully.`);
+    } catch (error) {
+        console.error("Failed to broadcast Genesis Block:", error);
+    }
+}
+
 // Run pipeline twice a day (every 12 hours) to simulate Drudge Report cadence
 cron.schedule('0 */12 * * *', () => {
     runNewsPipeline();
+});
+
+// Broadcast Genesis Block daily at 8:00 AM EST (13:00 UTC)
+cron.schedule('0 13 * * *', () => {
+    broadcastGenesisBlock();
 });
 
 // Start server

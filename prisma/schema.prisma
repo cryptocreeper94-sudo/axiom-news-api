@@ -50,3 +50,11 @@ model BlogPost {
   sourceProofHash      String?
   publishedAt          DateTime @default(now())
 }
+
+model Subscriber {
+  id        String   @id @default(uuid())
+  email     String?  @unique
+  phone     String?  @unique
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+}
