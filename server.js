@@ -214,16 +214,73 @@ app.get('/v1/spin', async (req, res) => {
 // Endpoint for Local News aggregation
 app.get('/v1/local', async (req, res) => {
     const { zip } = req.query;
-    if (!zip || zip.length !== 5) {
-        return res.status(400).json({ error: "Valid 5-digit ZIP code required" });
-    }
-    
+    if (!zip) return res.status(400).json({ error: "Missing ZIP code" });
+
     try {
         const localData = await getLocalNews(zip);
         res.json(localData);
     } catch (error) {
         console.error("Local route error:", error.message);
         res.status(500).json({ error: "Failed to load local news pipeline" });
+    }
+});
+
+// GET Axiom News Explorer (Search)
+app.get('/v1/search', async (req, res) => {
+    try {
+        const { q, startDate, endDate } = req.query;
+        if (!q) {
+            return res.status(400).json({ error: "Search query 'q' is required" });
+        }
+
+        let whereClause = {};
+
+        // Check if query is likely a hash (starts with 0x or is long and alphanumeric)
+        const isHash = q.length > 20 && /^[a-zA-Z0-9]+$/.test(q);
+
+        if (isHash) {
+            whereClause = {
+                OR: [
+                    { sourceProofHash: { equals: q } },
+                    { trustCertificate: { equals: q } },
+                    { sourceProofHash: { startsWith: q } },
+                    { trustCertificate: { startsWith: q } }
+                ]
+            };
+        } else {
+            // Plain text search across multiple fields
+            whereClause = {
+                OR: [
+                    { originalText: { contains: q, mode: 'insensitive' } },
+                    { coreEvent: { contains: q, mode: 'insensitive' } },
+                    { deterministicRewrite: { contains: q, mode: 'insensitive' } }
+                ]
+            };
+        }
+
+        // Apply Date Filters
+        if (startDate || endDate) {
+            whereClause.timestamp = {};
+            if (startDate) {
+                whereClause.timestamp.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                whereClause.timestamp.lte = end;
+            }
+        }
+
+        const articles = await prisma.article.findMany({
+            where: whereClause,
+            orderBy: { timestamp: 'desc' },
+            take: 100 // Limit results to prevent massive payloads
+        });
+
+        res.json({ articles, count: articles.length });
+    } catch (error) {
+        console.error("Search endpoint failed:", error);
+        res.status(500).json({ error: "Search failed" });
     }
 });
 
