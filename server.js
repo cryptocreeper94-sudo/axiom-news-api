@@ -284,6 +284,38 @@ app.get('/v1/search', async (req, res) => {
     }
 });
 
+// GET Related Articles for Spin Comparison (Narrative Delta)
+app.get('/v1/related', async (req, res) => {
+    try {
+        const { coreEvent, excludePublisher } = req.query;
+        if (!coreEvent) {
+            return res.status(400).json({ error: "coreEvent is required" });
+        }
+
+        // Find articles with the exact same coreEvent but from a different publisher
+        const relatedArticles = await prisma.article.findMany({
+            where: {
+                coreEvent: { equals: coreEvent },
+                publisherId: { not: excludePublisher },
+                isSatire: false
+            },
+            orderBy: {
+                biasScore: 'desc' // Try to find a highly biased opposing view for contrast
+            },
+            take: 1
+        });
+
+        if (relatedArticles.length > 0) {
+            res.json(relatedArticles[0]);
+        } else {
+            res.json(null);
+        }
+    } catch (error) {
+        console.error("Related endpoint failed:", error);
+        res.status(500).json({ error: "Failed to fetch related article" });
+    }
+});
+
 // Run pipeline twice a day (every 12 hours) to simulate Drudge Report cadence
 cron.schedule('0 */12 * * *', () => {
     runNewsPipeline();
