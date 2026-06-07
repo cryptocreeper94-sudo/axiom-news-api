@@ -1,0 +1,4 @@
+to rewrite_article(content: text) -> text:
+    let prompt = "Remove all bias and spin from this news story. Make it clinical and deterministic. Text: " + content
+    let result = ask prompt
+    return result

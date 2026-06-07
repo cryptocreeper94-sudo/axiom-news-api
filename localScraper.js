@@ -1,6 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { extractDeterministicFacts } = require('./gemini');
+const { extractDeterministicFacts } = require('./lumeEngine');
 const crypto = require('crypto');
 
 async function getLocalNews(zip) {
@@ -24,6 +24,9 @@ async function getLocalNews(zip) {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
         const $ = cheerio.load(response.data, { xmlMode: true });
+        
+        // Cryptographic proof of the raw RSS payload
+        const sourceProofHash = crypto.createHash('sha256').update(response.data).digest('hex');
 
         const items = $('item').slice(0, 15); // Top 15 local stories
         const localArticles = [];
@@ -46,21 +49,37 @@ async function getLocalNews(zip) {
             const titleHash = crypto.createHash('md5').update(displayTitle).digest('hex').substring(0, 12);
 
             // Pass through deterministic engine locally
-            const deterministicData = await extractDeterministicFacts(rawText, source);
+            let deterministicData;
+            try {
+                deterministicData = await extractDeterministicFacts(rawText, source);
+            } catch (err) {
+                console.error('Lume processing failed for local news, using fallback:', err.message);
+                deterministicData = {
+                    coreEvent: displayTitle,
+                    category: 'Local',
+                    biasScore: 50,
+                    processTimeline: ['Local RSS fetched', 'Lume processing failed, fallback used'],
+                    strippedTerms: [],
+                    deterministicRewrite: cleanDesc,
+                    trustCertificate: 'LTC-v1.0-FALLBACK'
+                };
+            }
             
             localArticles.push({
                 id: `loc-${zip}-${titleHash}`,
                 publisherId: 'local',
                 source: source,
                 timestamp: new Date().toISOString(),
-                coreEvent: deterministicData.coreEvent,
-                category: deterministicData.category,
+                coreEvent: deterministicData.coreEvent || displayTitle,
+                category: deterministicData.category || 'Local',
                 image: null, // Local news RSS rarely gives good images reliably
                 isSatire: false,
-                biasScore: deterministicData.biasScore,
-                processTimeline: deterministicData.processTimeline,
-                strippedTerms: deterministicData.strippedTerms,
-                deterministicRewrite: deterministicData.deterministicRewrite,
+                biasScore: deterministicData.biasScore || 50,
+                processTimeline: deterministicData.processTimeline || [],
+                strippedTerms: deterministicData.strippedTerms || [],
+                deterministicRewrite: deterministicData.deterministicRewrite || cleanDesc,
+                trustCertificate: deterministicData.trustCertificate,
+                sourceProofHash: sourceProofHash,
                 rawText: rawText,
                 originalText: `${rawText} | URL: ${link}`
             });

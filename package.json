@@ -14,13 +14,15 @@
   "type": "commonjs",
   "dependencies": {
     "@google/genai": "^2.7.0",
+    "@lume/compiler": "npm:lume-lang@^1.1.0",
+    "@prisma/client": "^5.22.0",
     "axios": "^1.16.1",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "lume-lang": "^1.1.0",
     "node-cron": "^4.2.1",
-    "@prisma/client": "^5.22.0",
     "prisma": "^5.22.0"
   }
 }

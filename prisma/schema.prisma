@@ -22,8 +22,31 @@ model Article {
   image           String?
   deterministicRewrite String?
   author          String?
+  trustCertificate String?
+  sourceProofHash  String?
   createdAt       DateTime @default(now())
 
   @@index([publisherId])
   @@index([timestamp])
+}
+
+model TrafficLog {
+  id        String   @id @default(uuid())
+  path      String
+  ip        String?
+  userAgent String?
+  timestamp DateTime @default(now())
+
+  @@index([path])
+  @@index([timestamp])
+}
+
+model BlogPost {
+  id                   String   @id @default(uuid())
+  title                String
+  originalDraft        String
+  deterministicRewrite String
+  trustCertificate     String
+  sourceProofHash      String?
+  publishedAt          DateTime @default(now())
 }

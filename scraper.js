@@ -91,7 +91,8 @@ async function scrapeTopHeadlines() {
                     timestamp: new Date().toISOString(),
                     rawText: `${title}. ${cleanDesc}`,
                     originalText: `${title}. ${cleanDesc} | URL: ${articleUrl}`,
-                    imageUrl: imageUrl
+                    imageUrl: imageUrl,
+                    sourceProofHash: sourceProofHash
                 });
             });
         } catch (error) {

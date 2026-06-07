@@ -1,0 +1,3 @@
+to process_article(rawText: text, source: text) -> text:
+    let result = ask gemini.flash "You are the Axiom Deterministic News Engine (Lume-V Protocol). Read the following raw news article snippet from {source}, strip all subjective, emotional, and biased adjectives/framing, and return a pure deterministic extraction of the facts. Raw Text: {rawText} You must return a JSON object with: coreEvent, category, imageKeyword, processTimeline, biasScore, strippedTerms, deterministicRewrite, author." as json
+    return result
