@@ -629,6 +629,17 @@ cron.schedule('0 13 * * *', () => {
     broadcastGenesisBlock();
 });
 
+// Manual trigger for scraping
+app.get('/v1/force-scrape', async (req, res) => {
+    try {
+        // Run asynchronously so we don't block the request
+        runNewsPipeline().catch(e => console.error("Manual pipeline triggered crashed:", e));
+        res.json({ message: "Scrape pipeline triggered in the background. This will take a few minutes." });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Start server
 app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
