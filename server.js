@@ -229,7 +229,7 @@ app.get('/v1/aggregate', async (req, res) => {
         // 1. Group by coreEvent to find matches
         const coreEventCounts = {};
         articles.forEach(article => {
-            if (article.coreEvent && !article.isSatire) {
+            if (article.coreEvent && !article.isSatire && article.biasScore >= 0) {
                 if (!coreEventCounts[article.coreEvent]) {
                     coreEventCounts[article.coreEvent] = new Set();
                 }
@@ -240,12 +240,13 @@ app.get('/v1/aggregate', async (req, res) => {
         // 2. Score articles
         const publishers = {};
         articles.forEach(article => {
-            if (!publishers[article.publisherId]) {
-                publishers[article.publisherId] = { matchedScore: 0, matchedCount: 0, unmatchedScore: 0, unmatchedCount: 0, totalCount: 0 };
-            }
-            publishers[article.publisherId].totalCount += 1;
-            
-            if (article.biasScore !== null && article.biasScore !== undefined) {
+            // Only consider successfully processed articles
+            if (article.biasScore !== null && article.biasScore !== undefined && article.biasScore >= 0) {
+                if (!publishers[article.publisherId]) {
+                    publishers[article.publisherId] = { matchedScore: 0, matchedCount: 0, unmatchedScore: 0, unmatchedCount: 0, totalCount: 0 };
+                }
+                publishers[article.publisherId].totalCount += 1;
+                
                 // Only count as "matched" if this event was covered by > 1 publisher
                 if (article.coreEvent && coreEventCounts[article.coreEvent] && coreEventCounts[article.coreEvent].size > 1) {
                     publishers[article.publisherId].matchedScore += article.biasScore;
