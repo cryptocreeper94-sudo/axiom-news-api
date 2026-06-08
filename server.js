@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const twilio = require('twilio');
+const crypto = require('crypto');
 const { Resend } = require('resend');
 require('dotenv').config();
 
@@ -72,7 +73,9 @@ async function runNewsPipeline() {
         
         // Prevent duplicate processing based on raw text
         const existing = await prisma.article.findFirst({
-            where: { originalText: raw.originalText }
+            where: { 
+                originalText: raw.originalText
+            }
         });
         
         if (existing) {
@@ -218,29 +221,63 @@ app.get('/v1/feed', async (req, res) => {
     }
 });
 
-// GET Aggregate Scores
+// GET Aggregate Scores (Only scoring matched core events)
 app.get('/v1/aggregate', async (req, res) => {
     try {
         const articles = await prisma.article.findMany();
-        const publishers = {};
         
+        // 1. Group by coreEvent to find matches
+        const coreEventCounts = {};
+        articles.forEach(article => {
+            if (article.coreEvent && !article.isSatire) {
+                if (!coreEventCounts[article.coreEvent]) {
+                    coreEventCounts[article.coreEvent] = new Set();
+                }
+                coreEventCounts[article.coreEvent].add(article.publisherId);
+            }
+        });
+
+        // 2. Score articles
+        const publishers = {};
         articles.forEach(article => {
             if (!publishers[article.publisherId]) {
-                publishers[article.publisherId] = { totalScore: 0, count: 0 };
+                publishers[article.publisherId] = { matchedScore: 0, matchedCount: 0, unmatchedScore: 0, unmatchedCount: 0, totalCount: 0 };
             }
+            publishers[article.publisherId].totalCount += 1;
+            
             if (article.biasScore !== null && article.biasScore !== undefined) {
-                publishers[article.publisherId].totalScore += article.biasScore;
-                publishers[article.publisherId].count += 1;
+                // Only count as "matched" if this event was covered by > 1 publisher
+                if (article.coreEvent && coreEventCounts[article.coreEvent] && coreEventCounts[article.coreEvent].size > 1) {
+                    publishers[article.publisherId].matchedScore += article.biasScore;
+                    publishers[article.publisherId].matchedCount += 1;
+                } else {
+                    publishers[article.publisherId].unmatchedScore += article.biasScore;
+                    publishers[article.publisherId].unmatchedCount += 1;
+                }
             }
         });
 
         const aggregateScores = {};
+        const aggregateStats = {};
         for (const pubId in publishers) {
-            if (publishers[pubId].count > 0) {
-                aggregateScores[pubId] = Math.round(publishers[pubId].totalScore / publishers[pubId].count);
+            const pub = publishers[pubId];
+            
+            // "only use the comparible stories for the actual rating. the one off stories could be rated by their own merit."
+            if (pub.matchedCount > 0) {
+                aggregateScores[pubId] = Math.round(pub.matchedScore / pub.matchedCount);
+            } else if (pub.unmatchedCount > 0) {
+                aggregateScores[pubId] = Math.round(pub.unmatchedScore / pub.unmatchedCount);
             }
+            
+            aggregateStats[pubId] = {
+                matchedVolume: pub.matchedCount,
+                unmatchedVolume: pub.unmatchedCount,
+                totalVolume: pub.totalCount,
+                unmatchedScore: pub.unmatchedCount > 0 ? Math.round(pub.unmatchedScore / pub.unmatchedCount) : null,
+                isComparative: pub.matchedCount > 0
+            };
         }
-        res.json({ publishers: aggregateScores });
+        res.json({ publishers: aggregateScores, publisherStats: aggregateStats });
     } catch (error) {
         console.error("Failed to calculate aggregate scores:", error);
         res.status(500).json({ error: "Failed to calculate aggregate scores" });
@@ -565,9 +602,26 @@ async function broadcastGenesisBlock() {
     }
 }
 
-// Run pipeline twice a day (every 12 hours) to simulate Drudge Report cadence
-cron.schedule('0 */12 * * *', () => {
-    runNewsPipeline();
+// Check every 15 minutes if 12 hours have elapsed since the last successful scrape
+cron.schedule('*/15 * * * *', async () => {
+    try {
+        const lastScrape = await prisma.article.findFirst({
+            where: { isSatire: false, coreEvent: { not: "PROCESS_FAILED" } },
+            orderBy: { timestamp: 'desc' }
+        });
+        
+        if (lastScrape) {
+            const twelveHours = 12 * 60 * 60 * 1000;
+            const elapsed = Date.now() - new Date(lastScrape.timestamp).getTime();
+            if (elapsed < twelveHours) {
+                return; // Not due yet
+            }
+        }
+        
+        await runNewsPipeline().catch(e => console.error("Pipeline crashed on cron:", e));
+    } catch (err) {
+        console.error("Cron check failed:", err.message);
+    }
 });
 
 // Broadcast Genesis Block daily at 8:00 AM EST (13:00 UTC)
@@ -579,10 +633,19 @@ cron.schedule('0 13 * * *', () => {
 app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
     try {
-        console.log("Starting initial pipeline on boot...");
-        runNewsPipeline().catch(e => console.error("Pipeline crashed on boot:", e));
+        console.log("Checking if initial pipeline should run on boot...");
+        const lastScrape = await prisma.article.findFirst({
+            where: { isSatire: false },
+            orderBy: { timestamp: 'desc' }
+        });
+        const twelveHours = 12 * 60 * 60 * 1000;
+        if (!lastScrape || (Date.now() - new Date(lastScrape.timestamp).getTime()) >= twelveHours) {
+            runNewsPipeline().catch(e => console.error("Pipeline crashed on boot:", e));
+        } else {
+            console.log("Skipping boot scrape. Less than 12 hours since last scrape.");
+        }
     } catch (e) {
-        console.error("Database wipe failed:", e.message);
+        console.error("Database check failed:", e.message);
     }
 });
 
