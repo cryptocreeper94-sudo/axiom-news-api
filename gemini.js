@@ -1,6 +1,4 @@
 const axios = require('axios');
-const dotenv = require('dotenv');
-dotenv.config();
 
 async function extractDeterministicFacts(rawText, source) {
     const prompt = `
@@ -27,23 +25,34 @@ You must return a raw JSON object exactly matching this schema (do not wrap in m
 }
 `;
 
-    try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' }
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
+    let retries = 0;
+    const maxRetries = 3;
+    const baseDelay = 5000;
 
-        const resultText = response.data.choices[0].message.content;
-        return JSON.parse(resultText);
-    } catch (error) {
-        console.error('Extraction Error:', error.response?.data || error.message);
-        return null;
+    while (retries <= maxRetries) {
+        try {
+            const response = await axios.post('http://127.0.0.1:11434/api/generate', {
+                model: 'phi3', // Defaulting to phi3, can be switched to llama3
+                prompt: prompt,
+                stream: false,
+                format: 'json'
+            });
+
+            const resultText = response.data.response;
+            
+            const clean = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(clean);
+        } catch (error) {
+            retries++;
+            const delay = baseDelay * Math.pow(2, retries - 1);
+            console.warn(`Ollama Server Error. Make sure Ollama is running on 11434. Retrying in ${delay}ms... (Attempt ${retries}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            if (retries > maxRetries) {
+                console.error(`Extraction Error [${source}]:`, error.message || error);
+                return null;
+            }
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-process.env.DATABASE_URL = "postgresql://lume_cortex_user:lxKEqdUQcLDOr1VIiLiSxIFb2sqPDtsE@dpg-d7p4u7pkh4rs73btif0g-a.ohio-postgres.render.com/lume_cortex?sslmode=require";
+// DATABASE_URL is set via .env or Render environment variables
 
 const express = require('express');
 const cors = require('cors');
@@ -12,7 +12,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const { scrapeTopHeadlines } = require('./scraper');
-const { extractDeterministicFacts } = require('./gemini');
+const { extractDeterministicFacts } = require('./lumeEngine');
 const { getLocalNews } = require('./localScraper');
 const pulseEngine = require('./pulseEngine');
 const { extractAndSaveCivicsContext } = require('./civicsEngine');
