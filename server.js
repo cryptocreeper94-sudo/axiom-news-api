@@ -17,12 +17,19 @@ const { getLocalNews } = require('./localScraper');
 const pulseEngine = require('./pulseEngine');
 const { extractAndSaveCivicsContext } = require('./civicsEngine');
 const agentRoutes = require('./agentRoutes');
+const localIntelEngine = require('./localIntelEngine');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.use('/v1/agent', agentRoutes);
+
+// Local Intel & Fractal Engine Routes
+app.post('/api/intel', localIntelEngine.submitIntel);
+app.post('/api/intel/:id/vote', localIntelEngine.voteIntel);
+app.post('/api/notary', localIntelEngine.submitNotary);
+app.get('/api/notary/:id', localIntelEngine.getNotary);
 
 // In-memory cache for local news (avoids repeated Gemini calls for same ZIP)
 const localNewsCache = new Map();
@@ -344,18 +351,52 @@ app.get('/v1/local', async (req, res) => {
     requests.push(now);
     localRateLimiter.set(clientIP, requests);
 
-    // Check cache first
-    const cacheKey = `local-${zip}`;
-    const cached = localNewsCache.get(cacheKey);
-    if (cached && (now - cached.timestamp < LOCAL_CACHE_TTL)) {
-        console.log(`[Cache HIT] Local news for ZIP ${zip}`);
-        return res.json(cached.data);
-    }
-
     try {
-        const localData = await getLocalNews(zip);
-        localNewsCache.set(cacheKey, { data: localData, timestamp: now });
-        res.json(localData);
+        let localData = { location: `District ${zip}`, articles: [] };
+
+        // Check cache first for standard news
+        const cacheKey = `local-${zip}`;
+        const cached = localNewsCache.get(cacheKey);
+        if (cached && (now - cached.timestamp < LOCAL_CACHE_TTL)) {
+            console.log(`[Cache HIT] Local news for ZIP ${zip}`);
+            localData = cached.data;
+        } else {
+            localData = await getLocalNews(zip);
+            localNewsCache.set(cacheKey, { data: localData, timestamp: now });
+        }
+
+        // Fetch Community Local Intel (Bypasses standard cache for real-time intel)
+        const intelRecords = await prisma.localIntel.findMany({
+            where: { zipCode: zip },
+            orderBy: [{ upvotes: 'desc' }, { timestamp: 'desc' }]
+        });
+
+        const communityIntel = intelRecords.map(row => ({
+            id: `intel-${row.id}`,
+            title: 'Local Intelligence Tip',
+            summary: row.content,
+            zipCode: row.zipCode,
+            isLocal: true,
+            isIntel: true,
+            upvotes: row.upvotes,
+            downvotes: row.downvotes,
+            timeAgo: 'Just now', // For demo
+            imageUrl: 'https://images.unsplash.com/photo-1524813686514-a57563d77965?auto=format&fit=crop&q=80&w=800',
+            fractalBlockHash: row.fractalBlockHash,
+            tllAnchorHash: row.tllAnchorHash,
+            tllSignature: row.tllSignature,
+            coreEvent: 'LOCAL INTEL BROADCAST',
+            source: 'Citizen Network',
+            timestamp: row.timestamp.toISOString(),
+            originalText: row.content
+        }));
+
+        // Merge and send
+        res.json({
+            location: localData.location,
+            articles: [...communityIntel, ...(localData.articles || [])]
+        });
+
     } catch (error) {
         console.error("Local route error:", error.message);
         res.status(500).json({ error: "Failed to load local news pipeline" });
@@ -692,6 +733,8 @@ app.get('/v1/force-scrape', async (req, res) => {
 // Start server
 app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
+    localIntelEngine.startDaemon();
+    
     try {
         console.log("Checking if initial pipeline should run on boot...");
         if (pipelineRunning) {

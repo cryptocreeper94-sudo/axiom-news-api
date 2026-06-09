@@ -102,3 +102,33 @@ model ConstitutionalContext {
   
   createdAt       DateTime @default(now())
 }
+
+model LocalIntel {
+  id              Int      @id @default(autoincrement())
+  zipCode         String
+  content         String
+  upvotes         Int      @default(0)
+  downvotes       Int      @default(0)
+  fractalBlockHash String?
+  tllAnchorHash   String?
+  tllSignature    String?
+  timestamp       DateTime @default(now())
+}
+
+model FractalBlock {
+  id              Int      @id @default(autoincrement())
+  merkleRoot      String
+  tllAnchorHash   String?
+  tllSignature    String?
+  timestamp       DateTime @default(now())
+}
+
+model NotaryRecord {
+  id              Int      @id @default(autoincrement())
+  clientHash      String
+  fractalBlockHash String?
+  tllAnchorHash   String?
+  tllSignature    String?
+  timestamp       DateTime @default(now())
+}
+
