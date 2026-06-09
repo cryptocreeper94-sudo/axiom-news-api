@@ -24,6 +24,18 @@ app.use(express.json());
 
 app.use('/v1/agent', agentRoutes);
 
+// In-memory cache for local news (avoids repeated Gemini calls for same ZIP)
+const localNewsCache = new Map();
+const LOCAL_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+// Rate limiter for local news (max 10 unique ZIPs per IP per hour)
+const localRateLimiter = new Map();
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000;
+const RATE_LIMIT_MAX = 10;
+
+// Boot lock to prevent duplicate pipeline runs
+let pipelineRunning = false;
+
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN 
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN) 
   : null;
@@ -321,8 +333,28 @@ app.get('/v1/local', async (req, res) => {
     const { zip } = req.query;
     if (!zip) return res.status(400).json({ error: "Missing ZIP code" });
 
+    // Rate limiting per IP
+    const clientIP = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    if (!localRateLimiter.has(clientIP)) localRateLimiter.set(clientIP, []);
+    const requests = localRateLimiter.get(clientIP).filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (requests.length >= RATE_LIMIT_MAX) {
+        return res.status(429).json({ error: "Rate limit exceeded. Max 10 local news lookups per hour." });
+    }
+    requests.push(now);
+    localRateLimiter.set(clientIP, requests);
+
+    // Check cache first
+    const cacheKey = `local-${zip}`;
+    const cached = localNewsCache.get(cacheKey);
+    if (cached && (now - cached.timestamp < LOCAL_CACHE_TTL)) {
+        console.log(`[Cache HIT] Local news for ZIP ${zip}`);
+        return res.json(cached.data);
+    }
+
     try {
         const localData = await getLocalNews(zip);
+        localNewsCache.set(cacheKey, { data: localData, timestamp: now });
         res.json(localData);
     } catch (error) {
         console.error("Local route error:", error.message);
@@ -605,6 +637,10 @@ async function broadcastGenesisBlock() {
 
 // Check every 15 minutes if 12 hours have elapsed since the last successful scrape
 cron.schedule('*/15 * * * *', async () => {
+    if (pipelineRunning) {
+        console.log('[Cron] Pipeline already running, skipping check.');
+        return;
+    }
     try {
         const lastScrape = await prisma.article.findFirst({
             where: { isSatire: false, coreEvent: { not: "PROCESS_FAILED" } },
@@ -619,8 +655,11 @@ cron.schedule('*/15 * * * *', async () => {
             }
         }
         
+        pipelineRunning = true;
         await runNewsPipeline().catch(e => console.error("Pipeline crashed on cron:", e));
+        pipelineRunning = false;
     } catch (err) {
+        pipelineRunning = false;
         console.error("Cron check failed:", err.message);
     }
 });
@@ -632,11 +671,20 @@ cron.schedule('0 13 * * *', () => {
 
 // Manual trigger for scraping
 app.get('/v1/force-scrape', async (req, res) => {
+    // Require API key for manual scrape triggers
+    const apiKey = req.query.key || req.headers['x-api-key'];
+    if (apiKey !== 'axiom-news-internal-key') {
+        return res.status(403).json({ error: "Unauthorized. API key required." });
+    }
+    if (pipelineRunning) {
+        return res.status(409).json({ error: "Pipeline already running. Please wait." });
+    }
     try {
-        // Run asynchronously so we don't block the request
-        runNewsPipeline().catch(e => console.error("Manual pipeline triggered crashed:", e));
-        res.json({ message: "Scrape pipeline triggered in the background. This will take a few minutes." });
+        pipelineRunning = true;
+        runNewsPipeline().catch(e => console.error("Manual pipeline crashed:", e)).finally(() => { pipelineRunning = false; });
+        res.json({ message: "Scrape pipeline triggered in the background." });
     } catch (e) {
+        pipelineRunning = false;
         res.status(500).json({ error: e.message });
     }
 });
@@ -646,15 +694,22 @@ app.listen(PORT, async () => {
     console.log(`Axiom News API listening on port ${PORT}`);
     try {
         console.log("Checking if initial pipeline should run on boot...");
-        const lastScrape = await prisma.article.findFirst({
-            where: { isSatire: false },
-            orderBy: { timestamp: 'desc' }
-        });
-        const twelveHours = 12 * 60 * 60 * 1000;
-        if (!lastScrape || (Date.now() - new Date(lastScrape.timestamp).getTime()) >= twelveHours) {
-            runNewsPipeline().catch(e => console.error("Pipeline crashed on boot:", e));
+        if (pipelineRunning) {
+            console.log("Pipeline already running. Skipping boot scrape.");
         } else {
-            console.log("Skipping boot scrape. Less than 12 hours since last scrape.");
+            const lastScrape = await prisma.article.findFirst({
+                where: { isSatire: false, coreEvent: { not: 'PROCESS_FAILED' } },
+                orderBy: { timestamp: 'desc' }
+            });
+            const twelveHours = 12 * 60 * 60 * 1000;
+            if (!lastScrape || (Date.now() - new Date(lastScrape.timestamp).getTime()) >= twelveHours) {
+                pipelineRunning = true;
+                runNewsPipeline()
+                    .catch(e => console.error("Pipeline crashed on boot:", e))
+                    .finally(() => { pipelineRunning = false; });
+            } else {
+                console.log(`Skipping boot scrape. Last scrape was ${Math.round((Date.now() - new Date(lastScrape.timestamp).getTime()) / 3600000)}h ago.`);
+            }
         }
     } catch (e) {
         console.error("Database check failed:", e.message);
