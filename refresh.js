@@ -69,8 +69,20 @@ async function refresh() {
                 console.log(`   Using fallback image for category: ${deterministicData.category}`);
             }
 
-            await prisma.article.create({
-                data: {
+            await prisma.article.upsert({
+                where: { id: raw.id },
+                update: {
+                    coreEvent: deterministicData.coreEvent,
+                    processTimeline: deterministicData.processTimeline,
+                    biasScore: deterministicData.biasScore,
+                    originalText: raw.originalText,
+                    strippedTerms: deterministicData.strippedTerms,
+                    deterministicRewrite: deterministicData.deterministicRewrite || null,
+                    isSatire: raw.publisherId === 'satire',
+                    category: deterministicData.category || 'World',
+                    image: finalImage
+                },
+                create: {
                     id: raw.id,
                     publisherId: raw.publisherId,
                     source: raw.source,
@@ -91,8 +103,14 @@ async function refresh() {
         } else {
             failed++;
             console.log(`   ❌ Gemini processing failed. Flagging to prevent retry loop.`);
-            await prisma.article.create({
-                data: {
+            await prisma.article.upsert({
+                where: { id: raw.id },
+                update: {
+                    coreEvent: "PROCESS_FAILED",
+                    biasScore: -1,
+                    originalText: raw.originalText,
+                },
+                create: {
                     id: raw.id,
                     publisherId: raw.publisherId,
                     source: raw.source,
