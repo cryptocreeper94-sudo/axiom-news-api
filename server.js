@@ -107,9 +107,9 @@ async function runNewsPipeline() {
         if (deterministicData) {
             let finalImage = raw.imageUrl;
             
-            // Pollinations AI started throwing 402 Payment Required. 
-            // We now strictly use the raw source image, or fall back to high-quality Unsplash category images.
-            if (!finalImage) {
+            if (deterministicData.imageKeyword && deterministicData.imageKeyword !== 'null') {
+                finalImage = `https://image.pollinations.ai/prompt/${encodeURIComponent(`Photorealistic editorial news photography of ${deterministicData.imageKeyword}`)}?width=800&height=600&nologo=true&seed=${Date.now()}`;
+            } else if (!finalImage) {
                 const categoryImages = {
                     'Finance': [
                         'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3',
