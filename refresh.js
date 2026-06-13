@@ -4,7 +4,7 @@ process.env.DATABASE_URL = "postgresql://lume_cortex_user:lxKEqdUQcLDOr1VIiLiSxI
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { scrapeTopHeadlines } = require('./scraper');
-const { extractDeterministicFacts } = require('./gemini');
+const { extractDeterministicFacts } = require('./lumeEngine');
 
 async function refresh() {
     console.log('📡 Scraping fresh headlines...');
