@@ -11,6 +11,7 @@ const FEEDS = [
     { publisherId: 'breitbart', name: 'Breitbart', url: 'https://feeds.feedburner.com/breitbart' },
     { publisherId: 'cnn', name: 'CNN', url: 'http://rss.cnn.com/rss/cnn_topstories.rss' },
     { publisherId: 'nypost', name: 'New York Post', url: 'https://nypost.com/feed/' },
+    { publisherId: 'msnbc', name: 'MSNBC', url: 'https://feeds.nbcnews.com/nbcnews/public/news' },
     { publisherId: 'intercept', name: 'The Intercept', url: 'https://theintercept.com/feed/?lang=en' },
     { publisherId: 'salon', name: 'Salon', url: 'https://www.salon.com/feed/' },
     { publisherId: 'gateway', name: 'The Gateway Pundit', url: 'https://www.thegatewaypundit.com/feed/' },
