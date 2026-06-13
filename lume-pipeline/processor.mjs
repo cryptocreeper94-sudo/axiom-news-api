@@ -24,7 +24,8 @@ You must return a JSON object exactly matching this schema:
     "biasScore": 0-100,
     "strippedTerms": ["list", "of", "biased", "terms", "you", "removed"],
     "deterministicRewrite": "A full paragraph synthesized strictly from verified facts. No editorial language.",
-    "author": "Extract the author's full name if stated. If none, return 'Staff'."
+    "author": "Extract the author's full name if stated. If none, return 'Staff'.",
+    "isEconomicallyRelevant": true/false // Set true ONLY if this event has tangible macro-economic, stock market, or crypto market impact. False for pure cultural, social, or local news.
 }
 
 Return ONLY valid JSON. No markdown, no code fences, no explanation.`;

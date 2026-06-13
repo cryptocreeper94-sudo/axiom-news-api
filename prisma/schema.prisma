@@ -18,6 +18,7 @@ model Article {
   originalText    String
   strippedTerms   String[]
   isSatire        Boolean  @default(false)
+  isEconomicallyRelevant Boolean @default(false)
   category        String?  @default("World")
   image           String?
   deterministicRewrite String?
@@ -31,6 +32,17 @@ model Article {
 
   @@index([publisherId])
   @@index([timestamp])
+}
+
+model PulseVideo {
+  id              String   @id @default(uuid())
+  videoUrl        String
+  thumbnailUrl    String?
+  transcript      String
+  marketImpact    Float
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model TrafficLog {

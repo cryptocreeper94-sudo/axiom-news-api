@@ -44,8 +44,33 @@ app.get('/v1/blog', async (req, res) => {
   }
 });
 
-// Run AI Directed Blog generation every 6 hours
+// Pulse Video API Endpoint
+app.get('/v1/pulse-videos', async (req, res) => {
+  try {
+    const videos = await prisma.pulseVideo.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    });
+    res.json({ videos });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch pulse videos' });
+  }
+});
+
+// Run Pulse Video Generation and AI Directed Blog generation every 6 hours
 cron.schedule('0 */6 * * *', async () => {
+  console.log('[CRON] Starting Pulse Video Generation...');
+  try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execPromise = util.promisify(exec);
+      // Run the video generation pipeline synchronously before the blog so the latest video is available
+      await execPromise('node pulse_video_pipeline/generate_pulse_video.js', { cwd: __dirname });
+      console.log('[CRON] Pulse Video Generated successfully.');
+  } catch (err) {
+      console.error('[CRON] Pulse Video Generation Failed:', err.message);
+  }
+
   console.log('[CRON] Starting AI Directed Blog Generation...');
   await generateBlogDaemon();
 });
@@ -182,6 +207,7 @@ async function runNewsPipeline() {
                     deterministicRewrite: deterministicData.deterministicRewrite || null,
                     image: finalImage,
                     category: deterministicData.category || 'World',
+                    isEconomicallyRelevant: deterministicData.isEconomicallyRelevant || false
                 },
                 create: {
                     id: raw.id,
@@ -196,6 +222,7 @@ async function runNewsPipeline() {
                     deterministicRewrite: deterministicData.deterministicRewrite || null,
                     isSatire: raw.publisherId === 'satire',
                     category: deterministicData.category || 'World',
+                    isEconomicallyRelevant: deterministicData.isEconomicallyRelevant || false,
                     image: finalImage,
                     author: deterministicData.author || 'Staff',
                     trustCertificate: 'LTC-v1.0-' + require('crypto').createHash('sha256').update(JSON.stringify(deterministicData)).digest('hex'),

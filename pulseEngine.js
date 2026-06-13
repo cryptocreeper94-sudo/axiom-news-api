@@ -63,13 +63,13 @@ async function extractFeatures(deterministicData, rawOriginalText, publisherId) 
 
     // D. categoryWeight (0 to 1)
     const categoryMapping = {
-        'Finance': 0.9,
+        'Finance': 1.0,
+        'Technology': 0.85,
         'Politics': 0.8,
-        'Technology': 0.6,
-        'World': 0.7,
-        'Science': 0.4
+        'World': 0.4,
+        'Science': 0.3
     };
-    const categoryWeight = categoryMapping[deterministicData.category] || 0.5;
+    const categoryWeight = categoryMapping[deterministicData.category] || 0.3;
 
     // E. isSatire (0 or 1)
     const isSatire = publisherId === 'satire' ? 1 : 0;
@@ -86,6 +86,14 @@ async function extractFeatures(deterministicData, rawOriginalText, publisherId) 
 // 5. Main Integration Method
 async function generatePrediction(articleId, deterministicData, rawOriginalText, publisherId) {
     try {
+        if (deterministicData.isEconomicallyRelevant === false) {
+            console.log(`[Pulse] Article ${articleId} flagged as non-economic. Hardcapping probability to 0%.`);
+            await prisma.narrativePrediction.create({
+                data: { articleId, signal: 'LOW', probability: 0 }
+            });
+            return { signal: 'LOW', probability: 0 };
+        }
+
         console.log(`[Pulse] Extracting features for Article ${articleId}...`);
         const features = await extractFeatures(deterministicData, rawOriginalText, publisherId);
         
