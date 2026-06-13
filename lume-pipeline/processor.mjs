@@ -33,7 +33,7 @@ Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
     throw new Error('GEMINI_API_KEY not set in environment');
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   let retries = 0;
   const maxRetries = 3;
@@ -41,12 +41,7 @@ Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
   while (retries <= maxRetries) {
     try {
       const response = await axios.post(url, {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-          maxOutputTokens: 1024
-        }
+        contents: [{ parts: [{ text: prompt }] }]
       }, {
         headers: { 'Content-Type': 'application/json' },
         timeout: 30000
@@ -56,7 +51,12 @@ Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
       if (!text) throw new Error('Empty response from Gemini');
 
       const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(clean);
+      try {
+        return JSON.parse(clean);
+      } catch (parseError) {
+        console.error('[Gemini] JSON Parse Error on raw text:', text);
+        throw parseError;
+      }
     } catch (error) {
       retries++;
       if (retries > maxRetries) {
