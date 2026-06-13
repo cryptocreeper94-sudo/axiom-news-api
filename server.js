@@ -19,11 +19,36 @@ const { extractAndSaveCivicsContext } = require('./civicsEngine');
 const agentRoutes = require('./agentRoutes');
 const localIntelEngine = require('./localIntelEngine');
 
+const path = require('path');
+const { generateBlogDaemon } = require('./blogGenerator');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve generated predictive videos statically
+app.use('/videos', express.static(path.join(__dirname, 'pulse_video_pipeline')));
+
 app.use('/v1/agent', agentRoutes);
+
+// Blog API Endpoint
+app.get('/v1/blog', async (req, res) => {
+  try {
+    const posts = await prisma.blogPost.findMany({
+      orderBy: { publishedAt: 'desc' },
+      take: 20
+    });
+    res.json({ posts });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch blog posts' });
+  }
+});
+
+// Run AI Directed Blog generation every 6 hours
+cron.schedule('0 */6 * * *', async () => {
+  console.log('[CRON] Starting AI Directed Blog Generation...');
+  await generateBlogDaemon();
+});
 
 // Local Intel & Fractal Engine Routes
 app.post('/api/intel', localIntelEngine.submitIntel);

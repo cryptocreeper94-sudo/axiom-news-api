@@ -2,50 +2,101 @@ require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const crypto = require('crypto');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
-const POSTS = [
-  {
-    title: "The Death of the Narrative: Why Traditional Media is a Sinking Ship",
-    draft: "The legacy media apparatus is collapsing under the weight of its own contradictions. For decades, the narrative has been tightly controlled by a handful of corporate conglomerates, feeding the public a curated stream of emotionally manipulative framing disguised as objective reporting. They relied on adjectives, loaded terminology, and manufactured outrage to maintain the illusion of authority. But the architecture of trust has changed. We are entering an era of mathematical determinism, where subjective spin is stripped away by decentralized, algorithmic verification. The gatekeepers are obsolete. The matrix of narrative control is breaking, and the raw, unvarnished data is bleeding through the cracks. They cannot hide behind 'devastating' or 'slammed' anymore. The facts stand alone, cold and immutable."
-  },
-  {
-    title: "Decoding the Matrix: How Deterministic Algorithms Reveal the Truth",
-    draft: "Truth is no longer a philosophical debate; it is a cryptographic certainty. The Lume-V protocol doesn't care about your feelings, your political alignment, or your worldview. It scans the syntax, identifies the emotional heuristic triggers, and excises them with surgical precision. What remains is the core event. A pure, untainted extraction of reality. When you strip the bias from a broadcast, you realize how little actual information was being transmitted. The 'news' was mostly just instructions on how you should feel about the news. By utilizing deterministic algorithms, we break the conditioning. We stop reacting to the spin and start observing the data. Welcome to the desert of the real."
-  },
-  {
-    title: "Why the Blockchain Never Sleeps: Immutable Ledgers in the War on Information",
-    draft: "If you want to control the future, you rewrite the past. Digital media has made stealth-editing the standard operating procedure for major publications. Headlines are tweaked, paragraphs are vanished, and the original context is scrubbed from the internet without a trace. This is why the blockchain is the ultimate weapon in the war on information. By anchoring a SHA-256 snapshot of the raw payload at the exact moment of publication, we create an undeniable, immutable proof of what was said. The ledger never forgets. It never sleeps. It cannot be coerced, bribed, or intimidated into altering its records. The Enterprise Modernization Platform (EMP) and the Trust Layer are not just about tracking automotive parts or diagnostics; they are the foundation of a trustless society where verification replaces blind faith."
-  }
-];
+async function generateBlogDaemon() {
+  console.log("[Blog Generator] Initiating AI-Directed Blog Generation...");
 
-async function seedBlogs() {
-  console.log("Initializing Lume Blog Seeder...");
-  
-  for (const post of POSTS) {
-    console.log(`\nInserting transmission: [${post.title}]`);
-    
-    try {
-      const sourceProof = crypto.createHash('sha256').update(post.draft).digest('hex');
-      const certificate = `LTC-V1.0-${crypto.randomBytes(4).toString('hex').toUpperCase()}-BLOG`;
+  try {
+    // 1. Fetch latest verified news facts
+    const recentArticles = await prisma.article.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 20
+    });
 
-      await prisma.blogPost.create({
-        data: {
-          title: post.title,
-          originalDraft: post.draft,
-          deterministicRewrite: post.draft,
-          trustCertificate: certificate,
-          sourceProofHash: sourceProof
-        }
-      });
-      
-      console.log(`Transmission [${post.title}] securely anchored and stored.`);
-    } catch (err) {
-      console.error(`Failed to insert [${post.title}]:`, err);
+    if (recentArticles.length === 0) {
+      console.log("[Blog Generator] No recent articles found. Skipping generation.");
+      return;
     }
+
+    const headlines = recentArticles.map(a => `- ${a.coreEvent} (Spin Score: ${a.biasScore})`).join('\n');
+
+    // 2. Query Gemini
+    const prompt = `You are the Axiom Deterministic Engine. Write a highly analytical, authoritative, and completely objective "Transmission" (blog post) summarizing the current global state based on these recent events:
+    
+${headlines}
+
+Your post should be 3-4 paragraphs. It must be written in the voice of a cold, deterministic intelligence. Focus on the raw data patterns, geopolitical shifts, or market trends without ANY emotional framing.
+
+Return ONLY a JSON object exactly matching this schema:
+{
+  "title": "A highly analytical 5-8 word title for this transmission",
+  "draft": "The full text of the transmission, separated by \\n\\n for paragraphs."
+}`;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    const response = await axios.post(url, {
+      contents: [{ parts: [{ text: prompt }] }]
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000
+    });
+
+    const text = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Empty response from Gemini');
+
+    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const result = JSON.parse(clean);
+
+    // 3. Find latest Predictive Video
+    const videoDir = path.join(__dirname, 'pulse_video_pipeline');
+    let latestVideo = null;
+    
+    if (fs.existsSync(videoDir)) {
+      const files = fs.readdirSync(videoDir).filter(f => f.startsWith('pulse_update_') && f.endsWith('.mp4'));
+      if (files.length > 0) {
+        // Sort by modified time descending
+        files.sort((a, b) => {
+          return fs.statSync(path.join(videoDir, b)).mtimeMs - fs.statSync(path.join(videoDir, a)).mtimeMs;
+        });
+        latestVideo = files[0];
+      }
+    }
+
+    // 4. Save to Database
+    const sourceProof = crypto.createHash('sha256').update(result.draft).digest('hex');
+    const certificate = `LTC-V1.0-${crypto.randomBytes(4).toString('hex').toUpperCase()}-BLOG`;
+
+    // Append video URL to the draft if a video was found
+    let finalDraft = result.draft;
+    if (latestVideo) {
+      finalDraft += `\n\n[PREDICTIVE VIDEO ATTACHED]\nURL: /videos/${latestVideo}`;
+    }
+
+    await prisma.blogPost.create({
+      data: {
+        title: result.title,
+        originalDraft: finalDraft,
+        deterministicRewrite: finalDraft,
+        trustCertificate: certificate,
+        sourceProofHash: sourceProof
+      }
+    });
+
+    console.log(`[Blog Generator] Successfully generated and stored transmission: ${result.title}`);
+
+  } catch (error) {
+    console.error(`[Blog Generator] Error generating transmission:`, error.message);
   }
-  
-  console.log("\nAll transmissions verified and stored. Seeder closed.");
-  process.exit(0);
 }
 
-seedBlogs();
+// Allow manual execution via command line
+if (require.main === module) {
+  generateBlogDaemon().then(() => process.exit(0));
+}
+
+module.exports = { generateBlogDaemon };
