@@ -4,7 +4,8 @@ async function extractDeterministicFacts(rawText, source) {
     const prompt = `
 You are the Axiom Deterministic News Engine (Lume-V Protocol).
 Your job is to read the following raw news article snippet from ${source}, strip all subjective, emotional, and biased adjectives/framing, and return a pure deterministic extraction of the facts.
-CRITICAL RULE: Do NOT penalize or strip sensational language if it is a direct quote attributed to a primary source or official entity (e.g. Europol, Police). Quoting an official is factual reporting, not publisher spin. Retain primary source quotes in the timeline.
+CRITICAL RULE 1: Do NOT penalize or strip sensational language if it is a direct quote attributed to a primary source or official entity (e.g. Europol, Police). Quoting an official is factual reporting, not publisher spin. Retain primary source quotes in the timeline.
+CRITICAL RULE 2: If the article is a lifestyle, entertainment, recipe, or "fluff" piece (e.g. "7 genius ways to use..."), DO NOT penalize enthusiastic adjectives like "genius", "best", "delicious" as spin. These articles are inherently subjective but are NOT political or factual bias. For these, you must return a biasScore of 0, leave strippedTerms empty ([]), and set the category to 'Lifestyle'.
 
 Raw Text:
 "${rawText}"
@@ -12,7 +13,7 @@ Raw Text:
 You must return a raw JSON object exactly matching this schema (do not wrap in markdown):
 {
     "coreEvent": "A purely factual 1-sentence headline of the event.",
-    "category": "Must be exactly one of: 'Politics', 'Finance', 'Technology', or 'World'",
+    "category": "Must be exactly one of: 'Politics', 'Finance', 'Technology', 'World', or 'Lifestyle'",
     "imageKeyword": "A highly specific 1-2 word visual noun related to the event (e.g. 'rocket', 'senate', 'bank', 'protest'). Must be a highly aesthetic noun. Return null if the event is boring.",
     "processTimeline": [
         "Factual event step 1",
