@@ -4,6 +4,7 @@ async function extractDeterministicFacts(rawText, source) {
     const prompt = `
 You are the Axiom Deterministic News Engine (Lume-V Protocol).
 Your job is to read the following raw news article snippet from ${source}, strip all subjective, emotional, and biased adjectives/framing, and return a pure deterministic extraction of the facts.
+CRITICAL RULE: Do NOT penalize or strip sensational language if it is a direct quote attributed to a primary source or official entity (e.g. Europol, Police). Quoting an official is factual reporting, not publisher spin. Retain primary source quotes in the timeline.
 
 Raw Text:
 "${rawText}"
