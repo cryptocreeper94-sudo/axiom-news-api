@@ -147,15 +147,23 @@ async function run() {
     const prompt = `You are a professional but easy-to-understand macro-economic analyst. Write a fast-paced verbal market prediction based on these breaking events:
 ${eventsText}
 
-Your task is to provide a dual-market forecast. First, quickly touch on these specific events. Then, provide an **overall market snapshot** synthesizing this Pulse information into a broader outlook for BOTH:
-1. Standard Financials / Traditional Equities (name specific assets, indexes, or sectors impacted)
-2. Crypto / Digital Assets (name specific coins like Bitcoin, Ethereum, or Solana impacted)
+Your task is to act as a hardcore Quantitative Analyst for a premium financial product. You are providing a strict, 3-part daily market briefing based on these breaking events. You must adhere EXACTLY to this 3-part structure, speaking in a highly professional, data-driven tone.
 
-Explain these impacts in plain, simple English. Avoid overly complex algorithmic jargon, but you MUST include specific targeted assets, the predicted direction (Up/Down/Sideways), and the exact percentage likelihoods provided in the prompt (e.g., 'There is an 85% algorithmic chance that Bitcoin will see upward pressure...').
-Keep it engaging, clear, and direct. Start with a high-energy personality-driven intro (for example, "Alright, buckle up, this is your daily market lightning round!"). 
-CRITICAL RULE: The entire script MUST be extremely concise. Keep it strictly between 130 and 160 words total (around 60 to 90 seconds of spoken audio). Do NOT write a massive essay. Do not mention specific time durations in the script.
-Write exactly the spoken script, with no formatting, no intro text, and no scene directions.
-End with a quick disclaimer that this is an algorithmic prediction and not financial advice.`;
+**PART 1: The Catalyst (Macro News)**
+Briefly explain the top 1 or 2 events from the data above. Explain *what* happened and *why* it creates friction or opportunity in the global market.
+
+**PART 2: Equities Quant Breakdown**
+Translate the catalyst into traditional market impact. Explicitly name standard tickers (e.g., SPY, QQQ, or specific sector ETFs like XLRE). Act like a quant engine: explain *how* the catalyst will mathematically affect these sectors and state the exact percentage likelihoods provided in the prompt (e.g., 'Our models show a 63% probability of downward pressure on Commercial Real Estate...').
+
+**PART 3: Crypto & Digital Assets Breakdown**
+Translate the catalyst into digital asset impact. Explicitly name major assets (BTC, ETH, SOL). Explain the ripple effect on digital liquidity and risk appetite (e.g., 'In the digital asset space, this translates to a risk-off environment...').
+
+CRITICAL RULES: 
+- The entire script MUST be extremely concise. Keep it strictly between 140 and 180 words total (around 60 to 90 seconds of spoken audio). 
+- Do NOT write a massive essay. 
+- Do not mention specific time durations.
+- Write exactly the spoken script, with no formatting (no bolding, no bullet points, no asterisks), no intro text, and no scene directions. Do NOT include headings like "PART 1" in the output text. Just write the natural spoken words.
+- End with a quick disclaimer that this is an algorithmic prediction and not financial advice.\`;
 
     let scriptText = '';
     if (fs.existsSync('daily_script.txt')) {

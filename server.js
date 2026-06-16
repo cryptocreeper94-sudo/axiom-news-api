@@ -754,6 +754,13 @@ cron.schedule('*/15 * * * *', async () => {
     } catch (err) {
         pipelineRunning = false;
         console.error("Cron check failed:", err.message);
+        
+        if (err.message.includes("Can't reach database server")) {
+            console.log("[Cron] Database appears asleep. Waking it up...");
+            require('child_process').exec('npx prisma db push', { cwd: __dirname }, (error) => {
+                if (!error) console.log("[Cron] Database successfully woken up.");
+            });
+        }
     }
 });
 
