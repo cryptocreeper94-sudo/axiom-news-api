@@ -153,10 +153,12 @@ Your task is to act as a hardcore Quantitative Analyst for a premium financial p
 Briefly explain the top 1 or 2 events from the data above. Explain *what* happened and *why* it creates friction or opportunity in the global market.
 
 **PART 2: Equities Quant Breakdown**
-Translate the catalyst into traditional market impact. Explicitly name standard tickers (e.g., SPY, QQQ, or specific sector ETFs like XLRE). Act like a quant engine: explain *how* the catalyst will mathematically affect these sectors and state the exact percentage likelihoods provided in the prompt (e.g., 'Our models show a 63% probability of downward pressure on Commercial Real Estate...').
+Translate the catalyst into traditional market impact. Act like a quant engine: explain *how* the catalyst will mathematically affect specific sectors and state the exact percentage likelihoods provided in the prompt (e.g., 'Our models show a 63% probability of downward pressure on Commercial Real Estate...'). 
+CRITICAL VOICE RULE: Use the full spoken names of assets (e.g., "The S and P 500", "The Nasdaq", "Commercial Real Estate ETFs"). Do NOT use ticker abbreviations like SPY, QQQ, or XLRE.
 
 **PART 3: Crypto & Digital Assets Breakdown**
-Translate the catalyst into digital asset impact. Explicitly name major assets (BTC, ETH, SOL). Explain the ripple effect on digital liquidity and risk appetite (e.g., 'In the digital asset space, this translates to a risk-off environment...').
+Translate the catalyst into digital asset impact. Explain the ripple effect on digital liquidity and risk appetite (e.g., 'In the digital asset space, this translates to a risk-off environment...').
+CRITICAL VOICE RULE: Always use the full spoken names (e.g., "Bitcoin", "Ethereum", "Solana"). Do NOT use abbreviations like BTC, ETH, or SOL, as they sound choppy when narrated.
 
 CRITICAL RULES: 
 - The entire script MUST be extremely concise. Keep it strictly between 140 and 180 words total (around 60 to 90 seconds of spoken audio). 
