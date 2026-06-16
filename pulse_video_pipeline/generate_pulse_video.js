@@ -45,35 +45,34 @@ async function generateHtmlImage(prediction, bgPath, dest) {
                 display: flex; align-items: center; gap: 20px;
             }
             .logo-box {
-                width: 60px; height: 60px; background: rgba(255,255,255,0.1); 
-                border: 2px solid rgba(255,255,255,0.3); backdrop-filter: blur(10px);
+                width: 60px; height: 60px; background: #ffffff; color: #0f172a;
                 display: flex; justify-content: center; align-items: center;
-                font-weight: 700; font-size: 32px; border-radius: 12px;
+                font-weight: 700; font-size: 32px; border-radius: 4px;
             }
-            .brand { font-size: 36px; font-weight: 300; letter-spacing: 12px; text-transform: uppercase; }
+            .brand { font-size: 36px; font-weight: 500; letter-spacing: 6px; text-transform: uppercase; color: #ffffff; }
             .card {
-                z-index: 2; background: rgba(10, 15, 30, 0.6);
-                border: 1px solid rgba(255,255,255,0.15);
-                backdrop-filter: blur(20px); border-radius: 24px;
-                padding: 80px; max-width: 1400px; text-align: center;
-                box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+                z-index: 2; background: rgba(255, 255, 255, 0.96);
+                border-top: 8px solid #2563eb;
+                border-radius: 8px;
+                padding: 80px; max-width: 1400px; text-align: left;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.4);
             }
-            .event-text { font-size: 52px; font-weight: 500; line-height: 1.4; margin-bottom: 60px; color: #f1f5f9; }
+            .event-text { font-size: 48px; font-weight: 500; line-height: 1.4; margin-bottom: 60px; color: #0f172a; }
             .metric-box {
-                display: inline-block; padding: 40px 80px;
-                background: rgba(0, 255, 200, 0.1); border: 2px solid rgba(0, 255, 200, 0.4);
-                border-radius: 20px; box-shadow: 0 0 40px rgba(0,255,200,0.2);
+                display: inline-block; padding: 40px 60px;
+                background: #f1f5f9; border-left: 8px solid #2563eb;
+                border-radius: 4px;
             }
-            .prob-value { font-size: 140px; font-weight: 700; color: #00ffcc; letter-spacing: -2px; margin: 0; line-height: 1; text-shadow: 0 0 20px rgba(0,255,200,0.5); }
-            .prob-label { font-size: 24px; font-weight: 300; letter-spacing: 8px; text-transform: uppercase; color: #94a3b8; margin-top: 20px; }
-            .footer { position: absolute; bottom: 80px; left: 100px; z-index: 2; font-size: 20px; font-weight: 300; letter-spacing: 4px; color: rgba(255,255,255,0.5); }
+            .prob-value { font-size: 110px; font-weight: 700; color: #0f172a; margin: 0; line-height: 1; letter-spacing: -2px; }
+            .prob-label { font-size: 20px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #475569; margin-top: 20px; }
+            .footer { position: absolute; bottom: 80px; left: 100px; z-index: 2; font-size: 18px; font-weight: 500; letter-spacing: 3px; color: rgba(255,255,255,0.9); text-transform: uppercase; }
         </style>
     </head>
     <body>
         <div class="overlay"></div>
         <div class="header">
             <div class="logo-box">A</div>
-            <div class="brand">Axiom Pulse</div>
+            <div class="brand">Axiom Daily Pulse</div>
         </div>
         <div class="card">
             <div class="event-text">"${eventText}"</div>
@@ -82,7 +81,7 @@ async function generateHtmlImage(prediction, bgPath, dest) {
                 <div class="prob-label">Algorithmic Market Impact Likelihood</div>
             </div>
         </div>
-        <div class="footer">DETERMINISTIC PREDICTION ENGINE // V2.4</div>
+        <div class="footer">Axiom Financial Data Intelligence • darkwavepulse.com</div>
     </body>
     </html>
     `;
@@ -90,7 +89,7 @@ async function generateHtmlImage(prediction, bgPath, dest) {
     const browser = await puppeteer.launch({ headless: 'new' });
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
     await page.screenshot({ path: dest });
     await browser.close();
 }
@@ -117,15 +116,24 @@ async function run() {
 
     // 1. Get Top 3 Highest Impact articles from the last 24 hours
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const predictions = await prisma.narrativePrediction.findMany({
-        where: {
-            createdAt: { gte: yesterday },
-            probability: { gte: 0.5 } // Only events with >= 50% algorithmic impact likelihood
-        },
-        orderBy: { probability: 'desc' },
-        take: 3,
-        include: { article: true }
-    });
+    let predictions = [];
+    if (fs.existsSync('predictions.json')) {
+        console.log('\n🔒 Loading locked predictions from predictions.json...');
+        predictions = JSON.parse(fs.readFileSync('predictions.json', 'utf8'));
+    } else {
+        predictions = await prisma.narrativePrediction.findMany({
+            where: {
+                createdAt: { gte: yesterday },
+                probability: { gte: 0.50 },
+                article: {
+                    category: { in: ['Finance', 'Technology', 'Economy', 'Business', 'Crypto'] }
+                }
+            },
+            orderBy: { probability: 'desc' },
+            take: 3,
+            include: { article: true }
+        });
+    }
 
     if (predictions.length === 0) {
         console.log('No high-impact predictions found in the last 24 hours.');
@@ -136,33 +144,41 @@ async function run() {
     console.log('Gathered Events:\n' + eventsText);
 
     // 2. Generate Script via Gemini 2.5 Flash
-    const prompt = `You are a professional but easy-to-understand macro-economic analyst. Write a fast-paced, 60-second verbal market prediction based on these breaking events:
+    const prompt = `You are a professional but easy-to-understand macro-economic analyst. Write a fast-paced verbal market prediction based on these breaking events:
 ${eventsText}
 
-Your task is to provide a dual-market forecast. Explain what these events mean for the average person and how they might impact BOTH:
-1. Traditional Equities (like the S&P 500, specific sectors, or tech stocks)
-2. Digital Assets (like Bitcoin, Ethereum, or Solana)
+Your task is to provide a dual-market forecast. First, quickly touch on these specific events. Then, provide an **overall market snapshot** synthesizing this Pulse information into a broader outlook for BOTH:
+1. Standard Financials / Traditional Equities (name specific assets, indexes, or sectors impacted)
+2. Crypto / Digital Assets (name specific coins like Bitcoin, Ethereum, or Solana impacted)
 
-Explain these impacts in plain, simple English. Avoid overly complex algorithmic jargon, but you MUST still include the exact percentage likelihoods provided in the prompt (e.g., 'There is an 85% algorithmic chance that...').
-Keep it engaging, clear, and direct.
+Explain these impacts in plain, simple English. Avoid overly complex algorithmic jargon, but you MUST include specific targeted assets, the predicted direction (Up/Down/Sideways), and the exact percentage likelihoods provided in the prompt (e.g., 'There is an 85% algorithmic chance that Bitcoin will see upward pressure...').
+Keep it engaging, clear, and direct. Start with a high-energy personality-driven intro (for example, "Alright, buckle up, this is your daily market lightning round!"). 
+CRITICAL RULE: The entire script MUST be extremely concise. Keep it strictly between 130 and 160 words total (around 60 to 90 seconds of spoken audio). Do NOT write a massive essay. Do not mention specific time durations in the script.
 Write exactly the spoken script, with no formatting, no intro text, and no scene directions.
 End with a quick disclaimer that this is an algorithmic prediction and not financial advice.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-    
-    console.log('\n🧠 Requesting Script from Gemini...');
-    const geminiRes = await axios.post(geminiUrl, {
-        contents: [{ parts: [{ text: prompt }] }]
-    }, { headers: { 'Content-Type': 'application/json' } });
-    
-    const scriptText = geminiRes.data.candidates[0].content.parts[0].text.trim();
+    let scriptText = '';
+    if (fs.existsSync('daily_script.txt')) {
+        console.log('\n🧠 Loading script from daily_script.txt...');
+        scriptText = fs.readFileSync('daily_script.txt', 'utf8').trim();
+    } else {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+        
+        console.log('\n🧠 Requesting Script from Gemini...');
+        const geminiRes = await axios.post(geminiUrl, {
+            contents: [{ parts: [{ text: prompt }] }]
+        }, { headers: { 'Content-Type': 'application/json' } });
+        
+        scriptText = geminiRes.data.candidates[0].content.parts[0].text.trim();
+    }
     console.log('\n📜 Script:\n' + scriptText);
 
     // 3. Generate Narration (ElevenLabs)
     console.log('\n🎙️ Generating ElevenLabs Narration...');
+    const cleanScriptText = scriptText.replace(/[*_#]/g, ''); // Strip markdown
     const narrPath = path.join(workDir, 'pulse_narration.mp3');
     const body = JSON.stringify({
-        text: scriptText,
+        text: cleanScriptText,
         model_id: 'eleven_monolingual_v1',
         voice_settings: { stability: 0.90, similarity_boost: 0.80, style: 0.0, use_speaker_boost: true }, // Stoic config
     });
@@ -190,10 +206,10 @@ End with a quick disclaimer that this is an algorithmic prediction and not finan
     const imagePaths = [];
     const localAssets = ['pulse_bg_1.png', 'pulse_bg_2.png', 'pulse_bg_3.png'];
     for (let i = 0; i < predictions.length; i++) {
-        const randAsset = localAssets[Math.floor(Math.random() * localAssets.length)];
-        const srcPath = path.join(workDir, 'assets', randAsset);
+        const bgAsset = localAssets[i % localAssets.length];
+        const srcPath = path.join(workDir, 'assets', bgAsset);
         const dest = path.join(workDir, `scene_${i+1}.png`);
-        console.log(`Using Scene ${i+1} background: ${randAsset} and generating metric overlay...`);
+        console.log(`Using Scene ${i+1} background: ${bgAsset} and generating metric overlay...`);
         await generateHtmlImage(predictions[i], srcPath, dest);
         imagePaths.push(dest);
     }
@@ -213,14 +229,21 @@ End with a quick disclaimer that this is an algorithmic prediction and not finan
     const H = 1080;
     const TRANSITION = 1.0;
     // We want the total video length to be exactly audioDuration + 0.5s buffer
-    // Total = (scenes * duration) - ((scenes - 1) * transition)
     const targetVideoLength = audioDuration + 0.5;
-    const numScenes = imagePaths.length;
+    const targetSceneLen = 10; // 10 seconds per image
+    const requiredScenes = Math.max(imagePaths.length, Math.ceil(targetVideoLength / targetSceneLen));
+    
+    const finalImagePaths = [];
+    for (let i = 0; i < requiredScenes; i++) {
+        finalImagePaths.push(imagePaths[i % imagePaths.length]);
+    }
+    
+    const numScenes = finalImagePaths.length;
     const SCENE_DURATION = (targetVideoLength + (numScenes - 1) * TRANSITION) / numScenes;
     
     const clipPaths = [];
 
-    for (let i = 0; i < imagePaths.length; i++) {
+    for (let i = 0; i < finalImagePaths.length; i++) {
         const clipOut = path.join(workDir, `clip_${i}.mp4`);
         clipPaths.push(clipOut);
         const totalFrames = SCENE_DURATION * FPS;
@@ -228,17 +251,14 @@ End with a quick disclaimer that this is an algorithmic prediction and not finan
         const fadeOutStart = Math.round((SCENE_DURATION - 0.8) * FPS);
         const fadeOutFrames = Math.round(0.8 * FPS);
         
-        // slow zoom in
-        const zExpr = `1.0+on/${totalFrames}*0.1`;
         const fc = [
             `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black[scaled]`,
-            `[scaled]zoompan=z='${zExpr}':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':d=${totalFrames}:s=${W}x${H}:fps=${FPS}[zoomed]`,
-            `[zoomed]fade=t=in:st=0:nb_frames=${fadeInEnd}[fadein]`,
+            `[scaled]fade=t=in:st=0:nb_frames=${fadeInEnd}[fadein]`,
             `[fadein]fade=t=out:st=${fadeOutStart}:nb_frames=${fadeOutFrames}[out]`
         ].join(';');
 
         await runFFmpeg([
-            '-y', '-loop', '1', '-framerate', String(FPS), '-i', imagePaths[i],
+            '-y', '-loop', '1', '-framerate', String(FPS), '-i', finalImagePaths[i],
             '-filter_complex', fc, '-map', '[out]', '-t', String(SCENE_DURATION),
             '-c:v', 'libx264', '-preset', 'fast', '-crf', '22', '-pix_fmt', 'yuv420p', '-an', clipOut
         ], `Scene ${i+1} Clip`);
@@ -270,18 +290,17 @@ End with a quick disclaimer that this is an algorithmic prediction and not finan
         ], 'Merge');
     }
 
-    const finalPath = path.join(workDir, `pulse_update_${Date.now()}.mp4`);
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    const finalPath = path.join(workDir, `pulse_video_${dateStr}.mp4`);
     console.log('\n🔊 Muxing Audio...');
     await runFFmpeg([
         '-y', '-i', mergedPath, '-i', narrPath,
         '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-        '-shortest', finalPath
+        finalPath
     ], 'Final Mux');
 
-    // Cleanup
-    for (const cp of clipPaths) fs.unlinkSync(cp);
-    for (const img of imagePaths) fs.unlinkSync(img);
-    fs.unlinkSync(mergedPath);
+    // Cleanup is now manual so the user can review the video before deleting intermediate files.
 
     // Save to database for Axiom Daily Pulse native UI
     const videoFileName = path.basename(finalPath);
