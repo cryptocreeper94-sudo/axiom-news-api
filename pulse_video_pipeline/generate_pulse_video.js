@@ -162,7 +162,7 @@ You MUST specifically track and predict the impact on "Bitcoin", AND you MUST sp
 CRITICAL VOICE RULE: Always use the full spoken names. Do NOT use abbreviations like BTC, ETH, or XLM. For XRP, write it exactly as "X R P" so the AI voice pronounces the letters correctly.
 
 CRITICAL RULES: 
-- The entire script MUST be extremely concise. Keep it strictly between 160 and 200 words total (around 70 to 100 seconds of spoken audio). 
+- The entire script MUST be extremely concise. Keep it strictly between 220 and 280 words total (around 90 to 120 seconds of spoken audio). 
 - Do NOT write a massive essay. 
 - Do not mention specific time durations.
 - Write exactly the spoken script, with no formatting (no bolding, no bullet points, no asterisks), no intro text, and no scene directions. Do NOT include headings like "PART 1" in the output text. Just write the natural spoken words.
