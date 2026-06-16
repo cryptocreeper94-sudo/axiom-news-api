@@ -241,7 +241,7 @@ CRITICAL RULES:
     const TRANSITION = 1.0;
     // We want the total video length to be exactly audioDuration + 0.5s buffer
     const targetVideoLength = audioDuration + 0.5;
-    const targetSceneLen = 10; // 10 seconds per image
+    const targetSceneLen = 8.5; // 8.5 seconds per image
     const requiredScenes = Math.max(imagePaths.length, Math.ceil(targetVideoLength / targetSceneLen));
     
     const finalImagePaths = [];
