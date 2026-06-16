@@ -13,8 +13,7 @@ const ELEVENLABS_API_KEY = 'sk_aacd9b4aea77f8fcf050661d33b7a2337eec8bacd80608fb'
 const VOICE_ID = 'EXAVITQu4vr4xnSDxMaL'; // Sarah - highly professional
 const ffmpegExe = path.join('D:', 'video_build', 'ffmpeg', 'bin', 'ffmpeg.exe');
 
-async function generateHtmlImage(prediction, bgPath, dest) {
-    const probPercent = (prediction.probability * 100).toFixed(1) + '%';
+async function generateHtmlImage(prediction, quantMetrics, bgPath, dest) {
     const eventText = prediction.article.coreEvent.replace(/"/g, '&quot;');
     
     // Pass background as base64
@@ -22,66 +21,93 @@ async function generateHtmlImage(prediction, bgPath, dest) {
     const mime = bgPath.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
     const bgDataUrl = `data:${mime};base64,${bgBase64}`;
 
+    let quantHtml = '';
+    for (const metric of quantMetrics) {
+        const isUp = metric.direction.toLowerCase() === 'up';
+        const colorClass = isUp ? 'up' : 'down';
+        quantHtml += `
+            <div class="metric-card ${colorClass}">
+                <div class="asset-name">${metric.asset}</div>
+                <div class="prob-row">
+                    <div class="prob-value ${colorClass}">${metric.probability}%</div>
+                    <div class="prob-dir">${metric.direction}WARD PRESSURE</div>
+                </div>
+            </div>
+        `;
+    }
+
     const html = `
     <html>
     <head>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
         <style>
             body {
                 margin: 0; padding: 0; width: 1920px; height: 1080px;
                 background-image: url('${bgDataUrl}');
                 background-size: cover; background-position: center;
-                font-family: 'Inter', sans-serif;
-                color: white;
-                display: flex; flex-direction: column; justify-content: center; align-items: center;
+                font-family: 'Inter', sans-serif; color: white;
+                display: flex;
             }
-            .overlay {
+            .overlay-mask {
                 position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%);
+                background: rgba(15, 23, 42, 0.85);
+                backdrop-filter: blur(6px);
                 z-index: 1;
             }
-            .header {
-                position: absolute; top: 80px; left: 100px; z-index: 2;
-                display: flex; align-items: center; gap: 20px;
+            .dashboard {
+                position: relative; z-index: 2; display: flex; width: 100%; height: 100%;
+                padding: 80px; box-sizing: border-box;
             }
-            .logo-box {
-                width: 60px; height: 60px; background: #ffffff; color: #0f172a;
-                display: flex; justify-content: center; align-items: center;
-                font-weight: 700; font-size: 32px; border-radius: 4px;
-            }
-            .brand { font-size: 36px; font-weight: 500; letter-spacing: 6px; text-transform: uppercase; color: #ffffff; }
-            .card {
-                z-index: 2; background: rgba(255, 255, 255, 0.96);
-                border-top: 8px solid #2563eb;
-                border-radius: 8px;
-                padding: 80px; max-width: 1400px; text-align: left;
-                box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-            }
-            .event-text { font-size: 48px; font-weight: 500; line-height: 1.4; margin-bottom: 60px; color: #0f172a; }
-            .metric-box {
-                display: inline-block; padding: 40px 60px;
-                background: #f1f5f9; border-left: 8px solid #2563eb;
+            .left-col { flex: 1; border-right: 2px solid rgba(255,255,255,0.1); padding-right: 80px; display: flex; flex-direction: column; }
+            .right-col { width: 650px; padding-left: 80px; display: flex; flex-direction: column; justify-content: center; }
+            
+            .header { display: flex; align-items: center; gap: 20px; margin-bottom: 50px; }
+            .logo-box { width: 60px; height: 60px; background: #3b82f6; color: white; display: flex; justify-content: center; align-items: center; font-weight: 800; font-size: 32px; border-radius: 4px; }
+            .brand { font-size: 36px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: #f8fafc; }
+            .terminal-id { margin-left: auto; font-family: 'Roboto Mono', monospace; font-size: 20px; color: #94a3b8; }
+            
+            .catalyst-label { font-size: 20px; color: #3b82f6; font-weight: 700; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 24px; }
+            .event-text { font-size: 52px; font-weight: 600; line-height: 1.3; color: #f1f5f9; }
+            
+            .quant-label { font-size: 20px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 30px; }
+            .metric-card {
+                background: rgba(30, 41, 59, 0.7);
+                border: 1px solid rgba(255,255,255,0.05);
+                border-left: 6px solid #3b82f6;
+                padding: 40px; margin-bottom: 24px;
                 border-radius: 4px;
             }
-            .prob-value { font-size: 110px; font-weight: 700; color: #0f172a; margin: 0; line-height: 1; letter-spacing: -2px; }
-            .prob-label { font-size: 20px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #475569; margin-top: 20px; }
-            .footer { position: absolute; bottom: 80px; left: 100px; z-index: 2; font-size: 18px; font-weight: 500; letter-spacing: 3px; color: rgba(255,255,255,0.9); text-transform: uppercase; }
+            .metric-card.up { border-left-color: #10b981; }
+            .metric-card.down { border-left-color: #ef4444; }
+            
+            .asset-name { font-size: 32px; font-weight: 700; color: #f8fafc; margin-bottom: 16px; }
+            .prob-row { display: flex; justify-content: space-between; align-items: flex-end; }
+            .prob-value { font-family: 'Roboto Mono', monospace; font-size: 64px; font-weight: 700; line-height: 1; }
+            .prob-value.up { color: #10b981; }
+            .prob-value.down { color: #ef4444; }
+            .prob-dir { font-size: 20px; font-weight: 600; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px;}
         </style>
     </head>
     <body>
-        <div class="overlay"></div>
-        <div class="header">
-            <div class="logo-box">A</div>
-            <div class="brand">Axiom Daily Pulse</div>
-        </div>
-        <div class="card">
-            <div class="event-text">"${eventText}"</div>
-            <div class="metric-box">
-                <div class="prob-value">${probPercent}</div>
-                <div class="prob-label">Algorithmic Market Impact Likelihood</div>
+        <div class="overlay-mask"></div>
+        <div class="dashboard">
+            <div class="left-col">
+                <div class="header">
+                    <div class="logo-box">A</div>
+                    <div class="brand">Axiom Quant Engine</div>
+                    <div class="terminal-id">NODE_${Math.floor(Math.random()*9000)+1000}</div>
+                </div>
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <div class="catalyst-label">Primary Macro Catalyst</div>
+                    <div class="event-text">"${eventText}"</div>
+                </div>
+                <div style="font-family: 'Roboto Mono'; color: #64748b; font-size: 20px;">LIVE ALGORITHMIC PROJECTIONS • ${new Date().toISOString().split('T')[0]}</div>
+            </div>
+            <div class="right-col">
+                <div class="quant-label">Asset Impact Vectors</div>
+                ${quantHtml}
             </div>
         </div>
-        <div class="footer">Axiom Financial Data Intelligence • darkwavepulse.com</div>
     </body>
     </html>
     `;
@@ -125,9 +151,7 @@ async function run() {
             where: {
                 createdAt: { gte: yesterday },
                 probability: { gte: 0.50 },
-                article: {
-                    category: { in: ['Finance', 'Technology', 'Economy', 'Business', 'Crypto'] }
-                }
+                article: { category: { in: ['Finance', 'Technology', 'Economy', 'Business', 'Crypto'] } }
             },
             orderBy: { probability: 'desc' },
             take: 3,
@@ -144,92 +168,90 @@ async function run() {
     console.log('Gathered Events:\n' + eventsText);
 
     // 2. Generate Script via Gemini 2.5 Flash
-    const prompt = `You are a professional but easy-to-understand macro-economic analyst. Write a fast-paced verbal market prediction based on these breaking events:
+    const prompt = `You are a professional but easy-to-understand macro-economic quantitative analyst. Write a fast-paced verbal market prediction based on these breaking events:
 ${eventsText}
 
-Your task is to act as a hardcore Quantitative Analyst for a premium financial product. You are providing a strict, 3-part daily market briefing based on these breaking events. You must adhere EXACTLY to this 3-part structure, speaking in a highly professional, data-driven tone.
-
 **PART 1: The Catalyst (Macro News)**
-Briefly explain the top 1 or 2 events from the data above. Explain *what* happened and *why* it creates friction or opportunity in the global market.
+Explain what happened and why it creates friction or opportunity.
 
 **PART 2: Equities Quant Breakdown**
-Translate the catalyst into traditional market impact. Act like a quant engine: explain *how* the catalyst will mathematically affect specific sectors and state the exact percentage likelihoods provided in the prompt (e.g., 'Our models show a 63% probability of downward pressure on Commercial Real Estate...'). 
-CRITICAL VOICE RULE: Use the full spoken names of assets (e.g., "The S and P 500", "The Nasdaq", "Commercial Real Estate ETFs"). Do NOT use ticker abbreviations like SPY, QQQ, or XLRE.
+Explain how the catalyst affects specific sectors (e.g. Commercial Real Estate). Use full spoken names (e.g. "The S and P 500"). Provide specific numerical probabilities of upward or downward pressure.
 
 **PART 3: Crypto & Digital Assets Breakdown**
-Translate the catalyst into digital asset impact. Act like a quant engine: you MUST provide specific numerical probabilities of directional movement for the digital asset space.
-You MUST specifically track and predict the impact on "Bitcoin", AND you MUST specifically track and predict the impact on at least one of the major "ISO 20022" utility assets (e.g., "X R P", "Stellar", or "Algorand"). State their exact probability of upward or downward pressure based on the macroeconomic catalyst.
-CRITICAL VOICE RULE: Always use the full spoken names. Do NOT use abbreviations like BTC, ETH, or XLM. For XRP, write it exactly as "X R P" so the AI voice pronounces the letters correctly.
+Provide specific numerical probabilities of directional movement for digital assets.
+You MUST specifically track "Bitcoin", AND you MUST specifically track at least one ISO 20022 asset (e.g., "X R P", "Stellar", or "Algorand"). 
+Write XRP as "X R P" so the voice engine reads the letters.
 
-CRITICAL RULES: 
-- The entire script MUST be extremely concise. Keep it strictly between 220 and 280 words total (around 90 to 120 seconds of spoken audio). 
-- Do NOT write a massive essay. 
-- Do not mention specific time durations.
-- Write exactly the spoken script, with no formatting (no bolding, no bullet points, no asterisks), no intro text, and no scene directions. Do NOT include headings like "PART 1" in the output text. Just write the natural spoken words.
-- End with a quick disclaimer that this is an algorithmic prediction and not financial advice.`;
+CRITICAL RULES:
+- Script MUST be between 220 and 280 words.
+- End with a disclaimer that this is an algorithmic prediction.
+- You MUST output your response EXACTLY as a raw JSON object with NO MARKDOWN, NO \`\`\`json block. Just the raw JSON.
 
-    let scriptText = '';
-    if (fs.existsSync('daily_script.txt')) {
-        console.log('\n🧠 Loading script from daily_script.txt...');
-        scriptText = fs.readFileSync('daily_script.txt', 'utf8').trim();
+JSON SCHEMA:
+{
+  "script": "Good morning. Our primary macro catalyst...",
+  "quant_metrics": [
+    { "asset": "Commercial Real Estate ETFs", "direction": "Down", "probability": 63.2 },
+    { "asset": "Bitcoin", "direction": "Up", "probability": 58.0 },
+    { "asset": "X R P", "direction": "Down", "probability": 52.0 }
+  ]
+}
+`;
+
+    let scriptData;
+    if (fs.existsSync('daily_script.json')) {
+        console.log('\n🧠 Loading script from daily_script.json...');
+        scriptData = JSON.parse(fs.readFileSync('daily_script.json', 'utf8'));
     } else {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-        
-        console.log('\n🧠 Requesting Script from Gemini...');
+        console.log('\n🧠 Requesting JSON Script from Gemini...');
         const geminiRes = await axios.post(geminiUrl, {
-            contents: [{ parts: [{ text: prompt }] }]
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
         }, { headers: { 'Content-Type': 'application/json' } });
         
-        scriptText = geminiRes.data.candidates[0].content.parts[0].text.trim();
+        let rawContent = geminiRes.data.candidates[0].content.parts[0].text.trim();
+        scriptData = JSON.parse(rawContent);
+        fs.writeFileSync('daily_script.json', JSON.stringify(scriptData, null, 2));
     }
-    console.log('\n📜 Script:\n' + scriptText);
+    console.log('\n📜 Script:\n' + scriptData.script);
+    console.log('\n📊 Quant Metrics extracted:\n', scriptData.quant_metrics);
 
     // 3. Generate Narration (ElevenLabs)
     console.log('\n🎙️ Generating ElevenLabs Narration...');
-    const cleanScriptText = scriptText.replace(/[*_#]/g, ''); // Strip markdown
+    const cleanScriptText = scriptData.script.replace(/[*_#]/g, ''); // Strip markdown
     const narrPath = path.join(workDir, 'pulse_narration.mp3');
-    const body = JSON.stringify({
-        text: cleanScriptText,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: { stability: 0.90, similarity_boost: 0.80, style: 0.0, use_speaker_boost: true }, // Stoic config
-    });
-
-    await new Promise((resolve, reject) => {
-        const req = https.request({
-            hostname: 'api.elevenlabs.io',
-            path: `/v1/text-to-speech/${VOICE_ID}`,
-            method: 'POST',
-            headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-        }, (res) => {
-            if (res.statusCode !== 200) return reject(new Error('ElevenLabs API Error ' + res.statusCode));
-            const out = fs.createWriteStream(narrPath);
-            res.pipe(out);
-            out.on('finish', resolve);
-        });
-        req.on('error', reject);
-        req.write(body);
-        req.end();
-    });
-    console.log('✅ Audio saved.');
-
-    // 4. Gather Visuals (Dynamic High-Quality Assets)
-    console.log('\n🖼️ Generating Branded HTML Images...');
-    const imagePaths = [];
-    const localAssets = ['pulse_bg_1.png', 'pulse_bg_2.png', 'pulse_bg_3.png'];
-    for (let i = 0; i < predictions.length; i++) {
-        const bgAsset = localAssets[i % localAssets.length];
-        const srcPath = path.join(workDir, 'assets', bgAsset);
-        const dest = path.join(workDir, `scene_${i+1}.png`);
-        console.log(`Using Scene ${i+1} background: ${bgAsset} and generating metric overlay...`);
-        await generateHtmlImage(predictions[i], srcPath, dest);
-        imagePaths.push(dest);
-    }
-    console.log('✅ Backgrounds ready.');
-
-    // 5. Render Video (FFMPEG)
-    console.log('\n🎬 Rendering Video...');
     
-    // Dynamically calculate SCENE_DURATION based on the generated audio length
+    if (!fs.existsSync(narrPath)) {
+        const body = JSON.stringify({
+            text: cleanScriptText,
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: { stability: 0.90, similarity_boost: 0.80, style: 0.0, use_speaker_boost: true },
+        });
+
+        await new Promise((resolve, reject) => {
+            const req = https.request({
+                hostname: 'api.elevenlabs.io',
+                path: `/v1/text-to-speech/${VOICE_ID}`,
+                method: 'POST',
+                headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+            }, (res) => {
+                if (res.statusCode !== 200) return reject(new Error('ElevenLabs API Error ' + res.statusCode));
+                const out = fs.createWriteStream(narrPath);
+                res.pipe(out);
+                out.on('finish', resolve);
+            });
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+        });
+        console.log('✅ Audio saved.');
+    } else {
+        console.log('✅ Audio already exists.');
+    }
+
+    // 4. Calculate Duration & Required Scenes
+    console.log('\n⏱️ Calculating Timings...');
     const { execSync } = require('child_process');
     const ffprobeExe = path.join('D:', 'video_build', 'ffmpeg', 'bin', 'ffprobe.exe');
     const durationRaw = execSync(`"${ffprobeExe}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${narrPath}"`).toString().trim();
@@ -239,25 +261,70 @@ CRITICAL RULES:
     const W = 1920;
     const H = 1080;
     const TRANSITION = 1.0;
-    // We want the total video length to be exactly audioDuration + 0.5s buffer
     const targetVideoLength = audioDuration + 0.5;
     const targetSceneLen = 8.5; // 8.5 seconds per image
-    const requiredScenes = Math.max(imagePaths.length, Math.ceil(targetVideoLength / targetSceneLen));
+    const requiredScenes = Math.ceil(targetVideoLength / targetSceneLen);
     
-    const finalImagePaths = [];
-    for (let i = 0; i < requiredScenes; i++) {
-        finalImagePaths.push(imagePaths[i % imagePaths.length]);
-    }
-    
-    const numScenes = finalImagePaths.length;
+    const numScenes = requiredScenes;
     const SCENE_DURATION = (targetVideoLength + (numScenes - 1) * TRANSITION) / numScenes;
+
+    // 5. Gather Visuals (Dynamic API backgrounds)
+    console.log(`\n🖼️ Fetching ${requiredScenes} Dynamic AI Backgrounds from Pollinations...`);
+    const imagePaths = [];
     
+    const aiPrompts = [
+        "photorealistic corporate finance stock chart dark theme no purple no cyberpunk",
+        "institutional quantitative trading desk screens dark cinematic no cyberpunk",
+        "macro economics global logistics nodes abstract dark blue no purple",
+        "wall street skyscrapers glowing at night cinematic dark no futuristic",
+        "commercial real estate institutional investment abstract dark theme",
+        "global currency exchange rates matrix dark mode professional",
+        "digital assets blockchain nodes professional dark theme no glowing neon",
+        "algorithmic high frequency trading servers dark blue photorealistic",
+        "federal reserve bank building night photorealistic dark theme",
+        "international shipping containers cargo night cinematic dark theme",
+        "silicon valley tech campus night photorealistic dark theme",
+        "global commodities oil rig ocean night cinematic dark",
+        "corporate boardroom table glass window night city dark theme",
+        "fiber optic data cables macro dark theme professional",
+        "artificial intelligence neural network professional dark blue"
+    ];
+
+    for (let i = 0; i < requiredScenes; i++) {
+        const dest = path.join(workDir, `scene_${i+1}.png`);
+        const bgDest = path.join(workDir, `bg_${i+1}.jpg`);
+        const aiPrompt = aiPrompts[i % aiPrompts.length];
+        
+        if (!fs.existsSync(dest)) {
+            console.log(`Downloading background ${i+1}: ${aiPrompt}`);
+            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(aiPrompt)}?width=1920&height=1080&nologo=true`;
+            
+            await new Promise((resolve, reject) => {
+                https.get(url, (res) => {
+                    const file = fs.createWriteStream(bgDest);
+                    res.pipe(file);
+                    file.on('finish', resolve);
+                }).on('error', reject);
+            });
+
+            console.log(`Rendering Bloomberg overlay for scene ${i+1}...`);
+            await generateHtmlImage(predictions[0], scriptData.quant_metrics, bgDest, dest);
+            fs.unlinkSync(bgDest); // clean up intermediate bg
+        }
+        imagePaths.push(dest);
+    }
+    console.log('✅ Backgrounds and overlays ready.');
+
+    // 6. Render Video (FFMPEG)
+    console.log('\n🎬 Rendering Video Clips...');
     const clipPaths = [];
 
-    for (let i = 0; i < finalImagePaths.length; i++) {
+    for (let i = 0; i < imagePaths.length; i++) {
         const clipOut = path.join(workDir, `clip_${i}.mp4`);
         clipPaths.push(clipOut);
-        const totalFrames = SCENE_DURATION * FPS;
+        
+        if (fs.existsSync(clipOut)) continue;
+
         const fadeInEnd = Math.round(0.5 * FPS);
         const fadeOutStart = Math.round((SCENE_DURATION - 0.8) * FPS);
         const fadeOutFrames = Math.round(0.8 * FPS);
@@ -269,7 +336,7 @@ CRITICAL RULES:
         ].join(';');
 
         await runFFmpeg([
-            '-y', '-loop', '1', '-framerate', String(FPS), '-i', finalImagePaths[i],
+            '-y', '-loop', '1', '-framerate', String(FPS), '-i', imagePaths[i],
             '-filter_complex', fc, '-map', '[out]', '-t', String(SCENE_DURATION),
             '-c:v', 'libx264', '-preset', 'fast', '-crf', '22', '-pix_fmt', 'yuv420p', '-an', clipOut
         ], `Scene ${i+1} Clip`);
@@ -291,8 +358,6 @@ CRITICAL RULES:
 
     const mergedPath = path.join(workDir, 'merged_video.mp4');
     if (clipPaths.length === 1) {
-        console.log('[Merge] Only 1 scene, skipping xfade transition.');
-        const fs = require('fs');
         fs.copyFileSync(clipPaths[0], mergedPath);
     } else {
         await runFFmpeg([
@@ -311,14 +376,11 @@ CRITICAL RULES:
         finalPath
     ], 'Final Mux');
 
-    // Cleanup is now manual so the user can review the video before deleting intermediate files.
-
-    // Save to database for Axiom Daily Pulse native UI
     const videoFileName = path.basename(finalPath);
     await prisma.pulseVideo.create({
         data: {
             videoUrl: `https://api.axiom42news.com/videos/${videoFileName}`,
-            transcript: scriptText,
+            transcript: scriptData.script,
             marketImpact: predictions[0] ? predictions[0].probability : 0.0
         }
     });
