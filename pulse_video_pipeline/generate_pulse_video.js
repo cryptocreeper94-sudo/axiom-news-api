@@ -163,7 +163,7 @@ CRITICAL RULES:
 - Do NOT write a massive essay. 
 - Do not mention specific time durations.
 - Write exactly the spoken script, with no formatting (no bolding, no bullet points, no asterisks), no intro text, and no scene directions. Do NOT include headings like "PART 1" in the output text. Just write the natural spoken words.
-- End with a quick disclaimer that this is an algorithmic prediction and not financial advice.\`;
+- End with a quick disclaimer that this is an algorithmic prediction and not financial advice.`;
 
     let scriptText = '';
     if (fs.existsSync('daily_script.txt')) {
