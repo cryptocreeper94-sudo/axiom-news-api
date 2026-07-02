@@ -1,2 +1,14 @@
 node_modules
 .env
+*.mp4
+*.mp3
+*.wav
+*.png
+!pulse_video_pipeline/fallback.png
+!pulse_video_pipeline/assets/*.png
+!morning_brief_pipeline/assets/*.png
+pulse_video_pipeline/predictions.json
+pulse_video_pipeline/daily_script.json
+morning_brief_pipeline/morning_script.json
+server.log
+daily_script.json

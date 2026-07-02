@@ -80,6 +80,7 @@ model NarrativePrediction {
   article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
   signal          String   // HIGH, MEDIUM, LOW impact
   probability     Float    // 0.0 to 1.0
+  usedInVideo     Boolean  @default(false)
   createdAt       DateTime @default(now())
 
   feature         PredictionFeature?

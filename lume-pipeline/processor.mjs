@@ -13,7 +13,7 @@ Raw Text:
 
 You must return a JSON object exactly matching this schema:
 {
-    "coreEvent": "A purely factual 1-sentence headline of the event.",
+    "coreEvent": "NORMALIZED EVENT KEY — This MUST be a short, standardized, all-caps slug that identifies the underlying event. Format: VERB + PRIMARY_SUBJECT + KEY_QUALIFIER. Remove all publisher-specific framing, adjectives, and editorial language. Examples: 'SENATE PASSES BUDGET RESOLUTION', 'TRUMP SIGNS EXECUTIVE ORDER ON TARIFFS', 'FED HOLDS INTEREST RATE STEADY', 'WILDFIRE DESTROYS 500 HOMES IN CALIFORNIA', 'APPLE REPORTS Q2 EARNINGS BEAT'. The SAME real-world event from ANY publisher MUST produce the SAME coreEvent string. Use present tense. No articles (a/an/the). Max 8 words.",
     "category": "Must be exactly one of: 'Politics', 'Finance', 'Technology', 'World', or 'Science'",
     "imageKeyword": "A highly specific 1-2 word visual noun related to the event (e.g. 'rocket', 'senate', 'bank', 'protest'). Must be a highly aesthetic noun. Return null if the event is boring.",
     "processTimeline": [
