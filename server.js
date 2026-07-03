@@ -295,7 +295,11 @@ app.get('/v1/feed', async (req, res) => {
 // GET Aggregate Scores (Only scoring matched core events)
 app.get('/v1/aggregate', async (req, res) => {
     try {
-        const articles = await prisma.article.findMany();
+        // Only score articles from the last 24 hours to prevent stale non-normalized data from poisoning scores
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const articles = await prisma.article.findMany({
+            where: { timestamp: { gte: cutoff } }
+        });
         
         // 1. Group by coreEvent to find matches
         const coreEventCounts = {};
