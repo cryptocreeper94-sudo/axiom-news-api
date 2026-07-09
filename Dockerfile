@@ -43,4 +43,7 @@ COPY . .
 # Port (Coolify sets $PORT)
 EXPOSE ${PORT:-4001}
 
-CMD ["node", "server.js"]
+COPY start.sh ./
+RUN chmod +x start.sh
+
+CMD ["bash", "start.sh"]
